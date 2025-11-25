@@ -10,7 +10,143 @@
 ```yaml
 base_url: "http://localhost:8000"
 content_type: "application/json"
-authentication: none  # Public API
+authentication: "JWT Bearer Token (for write operations)"
+```
+
+---
+
+## 🔐 AUTHENTICATION SYSTEM
+
+### Roles Hierarchy
+```
+SUPER_ADMIN > ADMIN > EDITOR
+```
+
+| Role | Can Create | Can Update | Can Delete |
+|------|-----------|------------|------------|
+| SUPER_ADMIN | ✅ All | ✅ All | ✅ All |
+| ADMIN | ✅ All | ✅ All | ✅ All |
+| EDITOR | ✅ All | ✅ All | ❌ No |
+
+### Public vs Protected Endpoints
+- **GET endpoints**: Public (no authentication required)
+- **POST/PUT endpoints**: Require `Editor+` role
+- **DELETE endpoints**: Require `Admin+` role
+
+---
+
+## 👤 ADMIN ENDPOINTS
+
+### Setup First Admin (One-time)
+```http
+POST /admin/setup
+```
+**⚠️ Only works if no admins exist in the database.**
+
+**Request Body:**
+```json
+{
+  "username": "admin",
+  "email": "admin@example.com",
+  "password": "your-secure-password"
+}
+```
+**Response:** `AdminOut` (automatically becomes SUPER_ADMIN)
+
+---
+
+### Login
+```http
+POST /admin/login
+Content-Type: application/x-www-form-urlencoded
+```
+**Request Body (form data):**
+```
+username=admin&password=your-password
+```
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer"
+}
+```
+**Usage:** Include token in subsequent requests:
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+---
+
+### Get Current Admin Info
+```http
+GET /admin/me
+Authorization: Bearer {token}
+```
+**Response:** `AdminOut`
+
+---
+
+### Register New Admin (SUPER_ADMIN only)
+```http
+POST /admin/register
+Authorization: Bearer {super_admin_token}
+```
+**Request Body:**
+```json
+{
+  "username": "new_admin",
+  "email": "newadmin@example.com",
+  "password": "secure-password",
+  "role": "ADMIN"  // SUPER_ADMIN | ADMIN | EDITOR
+}
+```
+
+---
+
+### List All Admins (SUPER_ADMIN only)
+```http
+GET /admin/list
+Authorization: Bearer {super_admin_token}
+```
+
+---
+
+### Change Password
+```http
+PUT /admin/me/password
+Authorization: Bearer {token}
+```
+**Request Body:**
+```json
+{
+  "current_password": "old-password",
+  "new_password": "new-secure-password"
+}
+```
+
+---
+
+### Update Admin (SUPER_ADMIN only)
+```http
+PUT /admin/update/{admin_id}
+Authorization: Bearer {super_admin_token}
+```
+**Request Body:**
+```json
+{
+  "email": "newemail@example.com",
+  "role": "EDITOR",
+  "is_active": true
+}
+```
+
+---
+
+### Delete Admin (SUPER_ADMIN only)
+```http
+DELETE /admin/delete/{admin_id}
+Authorization: Bearer {super_admin_token}
 ```
 
 ---

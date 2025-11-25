@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 
-from routers import product_r, branches_r, categories_r, brands_r
+from routers import product_r, branches_r, categories_r, brands_r, admin_r
 from database.connection.SQLConection import create_db_and_tables
+# Importar modelo Admin para que SQLModel lo registre
+from database.models.admin import Admin  # noqa: F401
 
 
 @asynccontextmanager
@@ -42,6 +44,9 @@ app.include_router(product_r.router, tags=["Products"], prefix="/products")
 app.include_router(branches_r.router, tags=["Branches"], prefix="/branches")
 app.include_router(categories_r.router, tags=["Categories"], prefix="/categories")
 app.include_router(brands_r.router, tags=["Brands"], prefix="/brands")
+
+# Rutas de administración
+app.include_router(admin_r.router, tags=["Admin"], prefix="/admin")
 
 
 @app.get("/")
