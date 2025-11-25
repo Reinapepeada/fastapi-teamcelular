@@ -2,7 +2,6 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
 from database.connection.SQLConection import get_session
@@ -22,14 +21,18 @@ router = APIRouter()
 
 @router.post("/login", response_model=Token)
 def login(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    login_data: AdminLogin,
     session: Annotated[Session, Depends(get_session)]
 ):
     """
     Login de administrador.
     Retorna un token JWT para autenticación.
+    
+    Enviar JSON con:
+    - username: nombre de usuario
+    - password: contraseña
     """
-    admin = authenticate_admin(session, form_data.username, form_data.password)
+    admin = authenticate_admin(session, login_data.username, login_data.password)
     if not admin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
