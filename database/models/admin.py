@@ -34,7 +34,8 @@ class AdminCreate(BaseModel):
 
 
 class AdminLogin(BaseModel):
-    username: str
+    """Permite login con username o email"""
+    identifier: str  # Puede ser username o email
     password: str
 
 

@@ -61,9 +61,25 @@ def get_admin_by_username(session: Session, username: str) -> Admin | None:
     return session.exec(statement).first()
 
 
-def authenticate_admin(session: Session, username: str, password: str) -> Admin | None:
-    """Autentica un admin con username y password."""
-    admin = get_admin_by_username(session, username)
+def get_admin_by_email(session: Session, email: str) -> Admin | None:
+    """Obtiene un admin por su email."""
+    statement = select(Admin).where(Admin.email == email)
+    return session.exec(statement).first()
+
+
+def get_admin_by_identifier(session: Session, identifier: str) -> Admin | None:
+    """Obtiene un admin por username o email."""
+    # Primero intentar por username
+    admin = get_admin_by_username(session, identifier)
+    if admin:
+        return admin
+    # Si no, intentar por email
+    return get_admin_by_email(session, identifier)
+
+
+def authenticate_admin(session: Session, identifier: str, password: str) -> Admin | None:
+    """Autentica un admin con username/email y password."""
+    admin = get_admin_by_identifier(session, identifier)
     if not admin:
         return None
     if not verify_password(password, admin.hashed_password):

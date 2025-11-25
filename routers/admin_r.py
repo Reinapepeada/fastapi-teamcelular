@@ -26,17 +26,18 @@ def login(
 ):
     """
     Login de administrador.
+    Acepta username o email en el campo 'identifier'.
     Retorna un token JWT para autenticación.
     
-    Enviar JSON con:
-    - username: nombre de usuario
+    Body:
+    - identifier: username o email
     - password: contraseña
     """
-    admin = authenticate_admin(session, login_data.username, login_data.password)
+    admin = authenticate_admin(session, login_data.identifier, login_data.password)
     if not admin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
+            detail="Usuario/email o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
