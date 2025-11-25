@@ -15,12 +15,16 @@ from sqlmodel import SQLModel
 
 # importo mis modelos - necesarios para que alembic pueda hacer las migraciones
 from database.models.product import Product, ProductImage, ProductVariant, Discount, Category, Branch, Brand
-from database import models
+from database.models.admin import Admin
 
 # Obtener la URL desde la variable de entorno
-database_url = os.getenv("DATABASE_URL")
+database_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
 if not database_url:
     raise RuntimeError("DATABASE_URL no está definida")
+
+# Railway puede usar postgres:// pero SQLAlchemy necesita postgresql://
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 
 # this is the Alembic Config object, which provides
