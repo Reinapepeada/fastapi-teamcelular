@@ -19,8 +19,12 @@ SECRET_KEY = os.getenv("SECRET_KEY", "tu-clave-secreta-cambiar-en-produccion")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 horas por defecto
 
-# Contexto de encriptación para passwords
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Contexto de encriptación para passwords - usar bcrypt
+try:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+except Exception:
+    # Si hay error con bcrypt, usar argon2
+    pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login")
@@ -28,11 +32,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifica si la contraseña coincide con el hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        return False
 
 
 def get_password_hash(password: str) -> str:
     """Genera el hash de una contraseña."""
+    # Limitar a 72 bytes para bcrypt
+    password = password[:72]
     return pwd_context.hash(password)
 
 
