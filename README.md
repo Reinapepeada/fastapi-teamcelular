@@ -1,71 +1,151 @@
----
-title: FastAPI
-description: A FastAPI server
-tags:
-  - fastapi
-  - hypercorn
-  - python
----
+# 🛒 Team Celular API
 
-## Installation
-```
-py -m venv .venv
+API REST para catálogo de productos de Team Celular, construida con FastAPI y PostgreSQL.
+
+## 📋 Características
+
+- ✅ Gestión de productos con variantes (colores, tallas)
+- ✅ Categorías y marcas
+- ✅ Gestión de stock por sucursal
+- ✅ Imágenes de productos
+- ✅ Sistema de descuentos
+- ✅ Filtros y paginación
+- ✅ Conexión con PostgreSQL
+
+## 🚀 Instalación
+
+### 1. Clonar el repositorio
+```bash
+git clone https://github.com/Reinapepeada/fastapi-teamcelular.git
+cd fastapi-teamcelular
 ```
 
-## Usage
-```
+### 2. Crear entorno virtual
+```bash
+python -m venv .venv
+
+# Windows
 .venv\Scripts\activate
+
+# Linux/Mac
+source .venv/bin/activate
 ```
 
-## install dependencies
-```
+### 3. Instalar dependencias
+```bash
 pip install -r requirements.txt
-
-
-## Run for development
 ```
-fastapi dev main.py 
-```
-or 
 
-## Run for production << si vas a correr dos microservicios a la vez aclara el puerto "--port xxxx">>
+### 4. Configurar variables de entorno
+Crea un archivo `.env` basándote en `.env.example`:
+```bash
+DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/teamcelular
 ```
+
+### 5. Ejecutar migraciones
+```bash
+alembic upgrade head
+```
+
+### 6. Ejecutar el servidor
+```bash
+# Desarrollo (con hot-reload)
+fastapi dev main.py
+
+# Producción
 fastapi run main.py
 ```
-```
-<!-- incicio rapido -->
- py -m .venv venv ;.venv\Scripts\activate;pip install -r requirements.txt;fastapi dev main.py
+
+## 📁 Estructura del Proyecto
 
 ```
-# Migrar base de datos a postgress cuando se cambia algo en el modelo
-##Inicializar Alembic: En el directorio raíz de tu proyecto, ejecuta:
-alembic init alembic
+fastapi-teamcelular/
+├── main.py                 # Punto de entrada de la aplicación
+├── requirements.txt        # Dependencias
+├── alembic.ini            # Configuración de Alembic
+├── .env.example           # Ejemplo de variables de entorno
+│
+├── database/
+│   ├── connection/
+│   │   └── SQLConection.py # Conexión a PostgreSQL
+│   └── models/
+│       └── product.py      # Modelos SQLModel y schemas Pydantic
+│
+├── routers/
+│   ├── product_r.py       # Endpoints de productos
+│   ├── categories_r.py    # Endpoints de categorías
+│   ├── brands_r.py        # Endpoints de marcas
+│   └── branches_r.py      # Endpoints de sucursales
+│
+├── controllers/
+│   └── product_c.py       # Lógica de controladores
+│
+├── services/
+│   ├── product_s.py       # Lógica de negocio (productos)
+│   ├── category_s.py      # Lógica de negocio (categorías)
+│   ├── brand_s.py         # Lógica de negocio (marcas)
+│   └── branch_s.py        # Lógica de negocio (sucursales)
+│
+└── alembic/
+    └── versions/          # Migraciones de base de datos
+```
 
-Esto creará un directorio alembic y un archivo alembic.ini.
+## 🔗 Endpoints Principales
 
-## Configurar Alembic: Configura tu varibal de entorno de DATABASE_URL
-DATABASE_URL = "postgresql://user:password@localhost/dbname"
+### Productos
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/products/` | Listar productos (paginado y filtros) |
+| GET | `/products/all` | Obtener todos los productos |
+| GET | `/products/get/{id}` | Obtener producto por ID |
+| POST | `/products/create` | Crear producto |
+| PUT | `/products/update` | Actualizar producto |
+| DELETE | `/products/delete` | Eliminar producto |
+| GET | `/products/min-max-price` | Obtener rango de precios |
 
+### Variantes de Producto
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/products/create/variant` | Crear variantes |
+| GET | `/products/get/variant` | Obtener variantes por producto |
+| PUT | `/products/update/variant` | Actualizar variante |
+| DELETE | `/products/delete/variant` | Eliminar variante |
 
-## Crear una migración: Cada vez que realices cambios en tus modelos, crea una nueva migración:
-alembic revision --autogenerate -m "Descripción de los cambios"
+### Categorías, Marcas, Sucursales
+Cada entidad tiene endpoints CRUD bajo sus respectivos prefijos:
+- `/categories/`
+- `/brands/`
+- `/branches/`
 
-Esto generará un nuevo archivo de migración en el directorio alembic/versions.
+## 📖 Documentación API
 
-## Aplicar la migración: Para aplicar la migración a la base de datos, ejecuta:
+Una vez ejecutando el servidor, accede a:
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+## 🗃️ Migraciones con Alembic
+
+```bash
+# Crear nueva migración
+alembic revision --autogenerate -m "Descripción del cambio"
+
+# Aplicar migraciones
 alembic upgrade head
+
+# Revertir última migración
 alembic downgrade -1
-Esto aplicará la migración a la base de datos y actualizará la tabla alembic_version para reflejar la migración aplicada.
+```
 
+## 🛠️ Tecnologías
 
-## 💁‍♀️ How to use
+- **FastAPI** - Framework web moderno y rápido
+- **SQLModel** - ORM que combina SQLAlchemy + Pydantic
+- **PostgreSQL** - Base de datos relacional
+- **Alembic** - Migraciones de base de datos
+- **Uvicorn** - Servidor ASGI
 
-- Clone locally and install packages with pip using `pip install -r requirements.txt`
-- Run locally using `hypercorn main:app --reload`
+## 📄 Licencia
 
-## 📝 Notes
-
-- To learn about how to use FastAPI with most of its features, you can visit the [FastAPI Documentation](https://fastapi.tiangolo.com/tutorial/)
-- To learn about Hypercorn and how to configure it, read their [Documentation](https://hypercorn.readthedocs.io/)
+Este proyecto está bajo la Licencia MIT.
 
 

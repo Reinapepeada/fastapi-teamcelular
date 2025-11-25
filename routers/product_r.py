@@ -50,7 +50,7 @@ def get_products_all_endp(
     return get_products_all(session)
 
 @router.get("/")
-async def get_filtered_paginated_products(
+def get_filtered_paginated_products(
     page: int = Query(1, ge=1, description="Page number, starting from 1"),
     size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     categories: Optional[str] = Query(None, description="Comma-separated category IDs"),
@@ -65,7 +65,7 @@ async def get_filtered_paginated_products(
         "min_price": minPrice,
         "max_price": maxPrice,
     }
-    return await get_filtered_paginated_products_controller(session, page, size, filters)
+    return get_filtered_paginated_products_controller(session, page, size, filters)
 
 @router.get("/min-max-price")
 def get_max_min_price_endp(

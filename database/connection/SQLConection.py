@@ -1,44 +1,39 @@
 
-from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 from typing import Annotated
 from fastapi import Depends
 import os
 from dotenv import load_dotenv
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
 load_dotenv()
-postgress_railway = os.getenv("DATABASE_URL")
 
+# Obtener la URL de la base de datos desde variables de entorno
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# connect_args = {"check_same_thread": False}
-# engine = create_engine(postgress_railway, connect_args=connect_args)
-# async_engine = create_async_engine(postgress_railway, echo=True)
-# engine = create_engine(postgress_railway)
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL no está definida en las variables de entorno")
 
-connect_args = {"check_same_thread": False}
+# Configuración del engine para PostgreSQL
+# Nota: "check_same_thread" es solo para SQLite, no se usa con PostgreSQL
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,  # Cambiar a True para ver las queries SQL en desarrollo
+    pool_pre_ping=True,  # Verifica la conexión antes de usarla
+    pool_size=5,  # Tamaño del pool de conexiones
+    max_overflow=10,  # Conexiones adicionales permitidas
+)
 
-engine = create_engine(postgress_railway, connect_args=connect_args)
 
 def create_db_and_tables():
+    """Crea las tablas en la base de datos si no existen."""
     SQLModel.metadata.create_all(engine)
 
 
-
-# async_session = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
-
-# async def get_async_session() -> AsyncSession:
-#     async with async_session() as session:
-#         yield session
-
-
 def get_session():
+    """Generador de sesiones para inyección de dependencias."""
     with Session(engine) as session:
         yield session
 
 
-
+# Tipo anotado para usar como dependencia en FastAPI
 SessionDep = Annotated[Session, Depends(get_session)]
-# AsyncSessionDep = Annotated[AsyncSession, Depends(get_async_session)]

@@ -1,41 +1,38 @@
 from fastapi import FastAPI
-from fastapi.responses import PlainTextResponse
-from routers import user_r, product_r,purchases_r, branches_r, providers_r, categories_r, brands_r
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import PlainTextResponse
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from routers import product_r, branches_r, categories_r, brands_r
 
-
-app = FastAPI()
+app = FastAPI(
+    title="Team Celular API",
+    description="API para catálogo de productos de Team Celular",
+    version="1.0.0"
+)
 
 # Configurar los orígenes permitidos
 origins = [
-    "http://localhost",  # Orígenes específicos
+    "http://localhost",
     "http://localhost:3000",
     "https://teamcelular.com"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Orígenes permitidos
-    allow_credentials=True,  # Permitir cookies o credenciales
-    allow_methods=["*"],  # Métodos HTTP permitidos
-    allow_headers=["*"],  # Headers permitidos
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app.include_router(user_r.router, tags=["Users"], prefix="/users")
-app.include_router(purchases_r.router, tags=["Purchases"], prefix="/purchases")
+# Rutas principales para el catálogo de productos
 app.include_router(product_r.router, tags=["Products"], prefix="/products")
 app.include_router(branches_r.router, tags=["Branches"], prefix="/branches")
-app.include_router(providers_r.router, tags=["Providers"], prefix="/providers")
 app.include_router(categories_r.router, tags=["Categories"], prefix="/categories")
 app.include_router(brands_r.router, tags=["Brands"], prefix="/brands")
 
 
 @app.get("/")
 def read_root():
-    return {"msg": "Welcome to team celular's API!"}
+    return {"msg": "Welcome to Team Celular's API!"}
 
 
 

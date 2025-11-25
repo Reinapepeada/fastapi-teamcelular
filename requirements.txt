@@ -1,9 +1,7 @@
 fastapi[standard]
 sqlmodel
-psycopg2
-python-jose
-passlib[bcrypt]
+psycopg2-binary
 alembic
-python-barcode 
-qrcode[pil]
 pytest
+python-dotenv
+uvicorn[standard]

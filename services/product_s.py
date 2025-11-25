@@ -1,223 +1,80 @@
+"""
+Servicio de productos - Operaciones de base de datos
+"""
 from typing import List
 import uuid
 from fastapi import HTTPException, status
-import psycopg2
 from sqlmodel import select
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import func
+
 from database.models.product import (
     Branch,
     Brand,
     Category,
     Product,
     ProductImage,
-    ProductOut,
     ProductUpdate,
     ProductVariant,
     ProductVariantUpdate,
-    Provider,
 )
-from fastapi import HTTPException 
-from barcode import Code128
-from barcode.writer import ImageWriter
-import qrcode
 from services.branch_s import ensure_branch_exists
 from services.brand_s import ensure_brand_exists
 
 
+# =============================================
+# VALIDACIONES
+# =============================================
+
 def ensure_category_exists(category_id: int, session):
+    """Verifica que la categoría exista"""
+    if category_id is None:
+        return None
     category = session.exec(select(Category).where(Category.id == category_id)).scalar()
     if not category:
-        raise ValueError(f"Category with id {category_id} does not exist")
+        raise ValueError(f"Categoría con id {category_id} no existe")
     return category
 
 
-def ensure_provider_exists(provider_id: int, session):
-    provider = session.exec(select(Provider).where(Provider.id == provider_id)).scalar()
-    if not provider:
-        raise ValueError(f"Provider with id {provider_id} does not exist")
-    return provider
-
-
-def ensure_product_exists_serial(product_serial: int, session):
+def ensure_product_exists_serial(product_serial: str, session):
+    """Verifica que el producto exista por serial"""
     product = session.exec(
         select(Product).where(Product.serial_number == product_serial)
     ).scalar()
     if not product:
-        raise ValueError(f"Product with id {product_serial} does not exist")
+        raise ValueError(f"Producto con serial {product_serial} no existe")
     return product
 
 
 def ensure_product_exists_id(product_id: int, session):
+    """Verifica que el producto exista por ID"""
     product = session.exec(select(Product).where(Product.id == product_id)).scalar()
     if not product:
-        raise ValueError(f"Product with id {product_id} does not exist")
+        raise ValueError(f"Producto con id {product_id} no existe")
     return product
 
 
-def product_exists_serial(product_serial: int, session):
+def product_exists_serial(product_serial: str, session) -> bool:
+    """Retorna True si el producto existe por serial"""
     product = session.exec(
         select(Product).where(Product.serial_number == product_serial)
     ).scalar()
-    if not product:
-        return False
-    return True
+    return product is not None
 
 
 def ensure_product_variant_exists(variant_id: int, session):
+    """Verifica que la variante de producto exista"""
     variant = session.exec(
         select(ProductVariant).where(ProductVariant.id == variant_id)
     ).scalar()
     if not variant:
-        raise ValueError(f"Product variant with id {variant_id} does not exist")
+        raise ValueError(f"Variante de producto con id {variant_id} no existe")
     return variant
 
 
-def generate_sku(product_name: str, category_id: int, provider_id: int) -> str:
-    unique_id = uuid.uuid4().hex[:8].upper()
-    sku = f"{product_name[:4].upper()}-{category_id:02d}-{provider_id:02d}-{unique_id}"
-    return sku
-
-
-def create_product_db(product, session):
-    """Crea un producto o lo recupera si existe, dependiendo del flag."""
-    try:
-        # Validar existencia de categoría, proveedor y marca
-        ensure_category_exists(product.category_id, session)
-        ensure_provider_exists(product.provider_id, session)
-        ensure_brand_exists(product.brand_id, session)
-
-        db_product = product_exists_serial(product.serial_number, session)
-        if not db_product:  # Crear si no existe
-            db_product = Product(
-                serial_number=product.serial_number,
-                name=product.name,
-                description=product.description,
-                brand_id=product.brand_id,
-                warranty_unit=product.warranty_unit,
-                warranty_time=product.warranty_time,
-                cost=product.cost,
-                wholesale_price=product.wholesale_price,
-                retail_price=product.retail_price,
-                status=product.status,
-                category_id=product.category_id,
-                provider_id=product.provider_id,
-             )
-            session.add(db_product)
-            session.commit()
-            session.refresh(db_product)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El producto con serial {product.serial_number} ya existe.",
-            )
-        
-        return db_product
-    
-    except psycopg2.IntegrityError as e:
-        if "duplicate key value violates unique constraint" in str(e.orig):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No puedes crear dos productos con el mismo nombre en la misma categoría y proveedor.",
-            )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Ocurrió un error inesperado: {str(e)}"
-        )
-
-
-def get_products_all_db(session):
-    try:
-        products = session.exec(select(Product)).scalars().all()
-        print(products)
-        return products
-    except Exception as e:
-        session.rollback()
-        raise e
-
-
-def update_product_db(product_id: int, product: ProductUpdate, session):
-    try:
-        db_product = ensure_product_exists_id(product_id, session)
-        # actualiza solos los campos que se le pasaron en product
-        for key, value in product.model_dump(exclude_unset=True).items():
-            setattr(db_product, key, value)
-
-        session.commit()
-        session.refresh(db_product)
-    except Exception as e:
-        session.rollback()
-        raise e
-    return db_product
-
-
-from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
-from sqlalchemy.sql import func
-
-
-async def fetch_products_with_filters(
-    session, page: int, size: int, filters: dict
-):
-    query = select(Product).options(
-        selectinload(Product.category),
-        selectinload(Product.brand)
-    )
-    print(filters)
-    # Apply filters
-    if "categories" in filters and filters["categories"]:
-        category_names = [str(name) for name in filters["categories"].split(",")]
-        query = query.join(Product.category).where(Category.name.in_(category_names))
-
-    if "brands" in filters and filters["brands"]:
-        brand_names = [str(name) for name in filters["brands"].split(",")]
-        query = query.join(Product.brand).where(Brand.name.in_(brand_names))
-
-    if ("min_price" in filters and filters["min_price"] is not None) or ("max_price" in filters and filters["max_price"] is not None):
-        min_price = filters.get("min_price", 0)
-        max_price = filters.get("max_price", float('inf'))
-        query = query.where(Product.retail_price.between(min_price, max_price))
-
-    # Calculate total count
-    total_query = select(func.count()).select_from(query.subquery())
-    total = session.execute(total_query).scalar()
-
-    # Fetch paginated products
-    result = session.execute(
-        query.offset((page - 1) * size).limit(size)
-    )
-    products = result.scalars().all()
-
-    return products, total
-
-def get_max_min_price_db(session):
-    try:
-        result = session.exec(select(func.max(Product.retail_price), func.min(Product.retail_price))).one()
-        max_price, min_price = result
-        return max_price, min_price
-    except Exception as e:
-        session.rollback()
-        raise e
-
-def get_product_by_id_db(session, product_id: int):
-    try:
-        db_product = ensure_product_exists_id(product_id, session)
-        print(db_product)
-        return db_product
-    except Exception as e:
-        session.rollback()
-        raise e
-
-def delete_product_db(product_id: int, session):
-    try:
-        db_product = ensure_product_exists_id(product_id, session)
-        session.delete(db_product)
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-    return {"msg": "Product deleted successfully"}
-
 def ensure_unique_constraints_product_variant(product_id, color, size, size_unit, unit, session):
+    """Verifica unicidad de variante"""
     variant = session.exec(
         select(ProductVariant).where(
             (ProductVariant.product_id == product_id)
@@ -228,19 +85,182 @@ def ensure_unique_constraints_product_variant(product_id, color, size, size_unit
         )
     ).first()
     if variant:
-        raise ValueError("Ya existe una variante con las mismas de color, tamaño y unidad.")
+        raise ValueError("Ya existe una variante con las mismas características de color, tamaño y unidad.")
     return variant
 
+
+# =============================================
+# GENERADORES
+# =============================================
+
+def generate_sku(product_name: str, category_id: int, brand_id: int) -> str:
+    """Genera un SKU único para la variante"""
+    unique_id = uuid.uuid4().hex[:8].upper()
+    cat_id = category_id if category_id else 0
+    brand = brand_id if brand_id else 0
+    name_part = product_name[:4].upper() if len(product_name) >= 4 else product_name.upper()
+    return f"{name_part}-{cat_id:02d}-{brand:02d}-{unique_id}"
+
+
+# =============================================
+# CRUD PRODUCTOS
+# =============================================
+
+def create_product_db(product, session):
+    """Crea un nuevo producto"""
+    try:
+        # Validar existencia de categoría y marca si se proporcionan
+        if product.category_id:
+            ensure_category_exists(product.category_id, session)
+        if product.brand_id:
+            ensure_brand_exists(product.brand_id, session)
+
+        # Verificar si el producto ya existe
+        if product_exists_serial(product.serial_number, session):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El producto con serial {product.serial_number} ya existe.",
+            )
+
+        # Crear producto
+        db_product = Product(
+            serial_number=product.serial_number,
+            name=product.name,
+            description=product.description,
+            brand_id=product.brand_id,
+            warranty_unit=product.warranty_unit,
+            warranty_time=product.warranty_time,
+            cost=product.cost,
+            retail_price=product.retail_price,
+            status=product.status,
+            category_id=product.category_id,
+        )
+        session.add(db_product)
+        session.commit()
+        session.refresh(db_product)
+        return db_product
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear producto: {str(e)}"
+        )
+
+
+def get_products_all_db(session):
+    """Obtiene todos los productos"""
+    try:
+        products = session.exec(select(Product)).scalars().all()
+        return products
+    except Exception as e:
+        session.rollback()
+        raise e
+
+
+def get_product_by_id_db(session, product_id: int):
+    """Obtiene un producto por ID"""
+    try:
+        db_product = ensure_product_exists_id(product_id, session)
+        return db_product
+    except Exception as e:
+        session.rollback()
+        raise e
+
+
+def update_product_db(product_id: int, product: ProductUpdate, session):
+    """Actualiza un producto"""
+    try:
+        db_product = ensure_product_exists_id(product_id, session)
+        for key, value in product.model_dump(exclude_unset=True).items():
+            setattr(db_product, key, value)
+        session.commit()
+        session.refresh(db_product)
+        return db_product
+    except Exception as e:
+        session.rollback()
+        raise e
+
+
+def delete_product_db(product_id: int, session):
+    """Elimina un producto"""
+    try:
+        db_product = ensure_product_exists_id(product_id, session)
+        session.delete(db_product)
+        session.commit()
+        return {"msg": "Producto eliminado correctamente"}
+    except Exception as e:
+        session.rollback()
+        raise e
+
+
+def fetch_products_with_filters(session, page: int, size: int, filters: dict):
+    """Obtiene productos con filtros y paginación"""
+    query = select(Product).options(
+        selectinload(Product.category),
+        selectinload(Product.brand),
+        selectinload(Product.variants)
+    )
+
+    # Aplicar filtros
+    if filters.get("categories"):
+        category_names = [str(name) for name in filters["categories"].split(",")]
+        query = query.join(Product.category).where(Category.name.in_(category_names))
+
+    if filters.get("brands"):
+        brand_names = [str(name) for name in filters["brands"].split(",")]
+        query = query.join(Product.brand).where(Brand.name.in_(brand_names))
+
+    if filters.get("min_price") is not None or filters.get("max_price") is not None:
+        min_price = filters.get("min_price", 0)
+        max_price = filters.get("max_price", float('inf'))
+        query = query.where(Product.retail_price.between(min_price, max_price))
+
+    # Contar total
+    total_query = select(func.count()).select_from(query.subquery())
+    total = session.execute(total_query).scalar()
+
+    # Obtener productos paginados
+    result = session.execute(
+        query.offset((page - 1) * size).limit(size)
+    )
+    products = result.scalars().all()
+
+    return products, total
+
+
+def get_max_min_price_db(session):
+    """Obtiene precio máximo y mínimo"""
+    try:
+        result = session.exec(
+            select(func.max(Product.retail_price), func.min(Product.retail_price))
+        ).one()
+        max_price, min_price = result
+        return max_price, min_price
+    except Exception as e:
+        session.rollback()
+        raise e
+
+
+# =============================================
+# CRUD VARIANTES
+# =============================================
+
 def create_product_variant_db(product_variants, session):
-    """Crea variantes para un producto existente."""
+    """Crea variantes para un producto existente"""
     try:
         db_variants = []
         for variant in product_variants.variants:
-            # Validar existencia de producto y sucursal
+            # Validar existencia de producto
             db_product = ensure_product_exists_id(variant.product_id, session)
-            ensure_branch_exists(variant.branch_id, session)
             
-            # Validar unicidad de variantes
+            # Validar sucursal si se proporciona
+            if variant.branch_id:
+                ensure_branch_exists(variant.branch_id, session)
+
+            # Validar unicidad
             ensure_unique_constraints_product_variant(
                 variant.product_id,
                 variant.color,
@@ -254,9 +274,10 @@ def create_product_variant_db(product_variants, session):
             sku = generate_sku(
                 product_name=db_product.name,
                 category_id=db_product.category_id,
-                provider_id=db_product.provider_id,
+                brand_id=db_product.brand_id,
             )
-            # Crear la variante
+
+            # Crear variante
             db_variant = ProductVariant(
                 product_id=variant.product_id,
                 sku=sku,
@@ -266,13 +287,17 @@ def create_product_variant_db(product_variants, session):
                 unit=variant.unit,
                 branch_id=variant.branch_id,
                 stock=variant.stock,
+                min_stock=variant.min_stock,
             )
             session.add(db_variant)
             session.commit()
             session.refresh(db_variant)
-            persist_product_images(variant.images, db_variant.id, session)
+
+            # Agregar imágenes si existen
+            if variant.images:
+                persist_product_images(variant.images, db_variant.id, session)
+            
             db_variants.append(db_variant)
-        session.commit()
 
         return db_variants
 
@@ -280,7 +305,9 @@ def create_product_variant_db(product_variants, session):
         session.rollback()
         raise RuntimeError(f"Error al crear variantes de producto: {e}")
 
+
 def get_product_variants_by_product_id_db(product_id: int, session):
+    """Obtiene variantes por ID de producto"""
     try:
         db_variants = session.exec(
             select(ProductVariant).where(ProductVariant.product_id == product_id)
@@ -292,77 +319,69 @@ def get_product_variants_by_product_id_db(product_id: int, session):
 
 
 def update_product_variant_db(variant_id: int, variant: ProductVariantUpdate, session):
+    """Actualiza una variante"""
     try:
-        ensure_product_variant_exists(variant_id, session)
-        db_variant = session.exec(
-            select(ProductVariant).where(ProductVariant.id == variant_id)
-        ).first()
+        db_variant = ensure_product_variant_exists(variant_id, session)
         for key, value in variant.model_dump(exclude_unset=True).items():
-            setattr(db_variant, key, value)
+            if key != "images":  # Manejar imágenes por separado
+                setattr(db_variant, key, value)
         session.commit()
         session.refresh(db_variant)
+        return db_variant
     except Exception as e:
         session.rollback()
         raise e
-    return db_variant
 
 
 def delete_product_variant_db(variant_id: int, session):
+    """Elimina una variante"""
     try:
         db_variant = ensure_product_variant_exists(variant_id, session)
         session.delete(db_variant)
         session.commit()
+        return {"msg": "Variante eliminada correctamente"}
     except Exception as e:
         session.rollback()
         raise e
-    return {"msg": "Variant deleted successfully"}
 
 
-def persist_product_images(images, variant_id, session):
+# =============================================
+# IMÁGENES Y STOCK
+# =============================================
+
+def persist_product_images(images: List[str], variant_id: int, session):
+    """Guarda imágenes de una variante"""
     try:
         ensure_product_variant_exists(variant_id, session)
         for url_img in images:
-            session.add(ProductImage(image_url=str(url_img),variant_id=variant_id))
-            session.commit()
+            session.add(ProductImage(image_url=str(url_img), variant_id=variant_id))
+        session.commit()
     except Exception as e:
         session.rollback()
         raise e
 
-def add_stock_product_variant(variant_id, quantity, session):
+
+def add_stock_product_variant(variant_id: int, quantity: int, session):
+    """Añade stock a una variante"""
     try:
         db_variant = ensure_product_variant_exists(variant_id, session)
         db_variant.stock += quantity
         session.commit()
+        return db_variant
     except Exception as e:
         session.rollback()
         raise e
-    return db_variant
 
-def reduce_stock_product_variant(variant_id, quantity, session):
+
+def reduce_stock_product_variant(variant_id: int, quantity: int, session):
+    """Reduce stock de una variante"""
     try:
         db_variant = ensure_product_variant_exists(variant_id, session)
         if db_variant.stock < quantity:
-            raise ValueError("No hay suficiente stock para realizar la venta")
-        db_variant.stock = db_variant.stock - quantity
+            raise ValueError("No hay suficiente stock")
+        db_variant.stock -= quantity
         session.commit()
+        return db_variant
     except Exception as e:
         session.rollback()
         raise e
-    return db_variant
-
-def generate_barcode(sku: str):
-    barcode = Code128(sku, writer=ImageWriter())
-    barcode.save(f"barcodes/{sku}")
-
-
-def generate_qr_code(sku: str):
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(sku)
-    qr.make(fit=True)
-    img = qr.make_image(fill="black", back_color="white")
-    img.save(f"qrcodes/{sku}.png")

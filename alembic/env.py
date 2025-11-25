@@ -13,10 +13,8 @@ from alembic import context
 # importo mi modelo de base de datos
 from sqlmodel import SQLModel
 
-# importo mis modelos -necesiarios para que alembic pueda hacer las migraciones y sqlmodel pueda identificar las tablas en el meta
-from database.models.user import User
-from database.models.product import Product,ProductImage,ProductVariant,Discount,Category,Provider,Branch
-from database.models.order import Order,OrderItem
+# importo mis modelos - necesarios para que alembic pueda hacer las migraciones
+from database.models.product import Product, ProductImage, ProductVariant, Discount, Category, Branch, Brand
 from database import models
 
 # Obtener la URL desde la variable de entorno
