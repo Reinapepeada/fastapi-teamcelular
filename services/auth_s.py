@@ -5,7 +5,7 @@ import os
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from sqlmodel import Session, select
 from dotenv import load_dotenv
 
@@ -19,13 +19,6 @@ SECRET_KEY = os.getenv("SECRET_KEY", "tu-clave-secreta-cambiar-en-produccion")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 horas por defecto
 
-# Contexto de encriptación para passwords - usar bcrypt
-try:
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
-except Exception:
-    # Si hay error con bcrypt, usar argon2
-    pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login")
 
@@ -33,16 +26,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/login")
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifica si la contraseña coincide con el hash."""
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        # Truncar a 72 bytes para bcrypt
+        password_bytes = plain_password.encode('utf-8')[:72]
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
     except Exception:
         return False
 
 
 def get_password_hash(password: str) -> str:
     """Genera el hash de una contraseña."""
-    # Limitar a 72 bytes para bcrypt
-    password = password[:72]
-    return pwd_context.hash(password)
+    # Truncar a 72 bytes para bcrypt
+    password_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
