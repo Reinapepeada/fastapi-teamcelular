@@ -1,7 +1,6 @@
-fastapi[standard]
-sqlmodel
-psycopg2-binary
-alembic
-pytest
-python-dotenv
-uvicorn[standard]
+fastapi>=0.109.0
+sqlmodel>=0.0.14
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
+python-dotenv>=1.0.0
+uvicorn[standard]>=0.27.0

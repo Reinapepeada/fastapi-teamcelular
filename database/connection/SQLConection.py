@@ -8,10 +8,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Obtener la URL de la base de datos desde variables de entorno
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Railway usa DATABASE_URL o POSTGRES_URL para PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL no está definida en las variables de entorno")
+
+# Railway puede usar postgres:// pero SQLAlchemy necesita postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Configuración del engine para PostgreSQL
 # Nota: "check_same_thread" es solo para SQLite, no se usa con PostgreSQL

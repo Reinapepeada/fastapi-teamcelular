@@ -1,19 +1,33 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import os
+
 from routers import product_r, branches_r, categories_r, brands_r
+from database.connection.SQLConection import create_db_and_tables
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Evento de inicio: crea las tablas en la base de datos."""
+    create_db_and_tables()
+    yield
+
 
 app = FastAPI(
     title="Team Celular API",
     description="API para catálogo de productos de Team Celular",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configurar los orígenes permitidos
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "https://teamcelular.com"
-]
+# En producción, usa la variable de entorno ALLOWED_ORIGINS
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins == "*":
+    origins = ["*"]
+else:
+    origins = [origin.strip() for origin in allowed_origins.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +47,12 @@ app.include_router(brands_r.router, tags=["Brands"], prefix="/brands")
 @app.get("/")
 def read_root():
     return {"msg": "Welcome to Team Celular's API!"}
+
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint para Railway."""
+    return {"status": "healthy"}
 
 
 

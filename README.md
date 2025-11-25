@@ -144,6 +144,34 @@ alembic downgrade -1
 - **Alembic** - Migraciones de base de datos
 - **Uvicorn** - Servidor ASGI
 
+## 🚂 Deploy en Railway
+
+### 1. Crear proyecto en Railway
+1. Ve a [railway.app](https://railway.app) y crea una cuenta
+2. Crea un nuevo proyecto desde tu repositorio de GitHub
+
+### 2. Agregar PostgreSQL
+1. En tu proyecto de Railway, click en **"New"** → **"Database"** → **"PostgreSQL"**
+2. Railway configurará automáticamente las variables de entorno
+
+### 3. Variables de Entorno
+Railway configura `DATABASE_URL` automáticamente. Variables adicionales opcionales:
+
+| Variable | Descripción | Ejemplo |
+|----------|-------------|---------|
+| `DATABASE_URL` | URL de PostgreSQL (auto) | `postgresql://...` |
+| `ALLOWED_ORIGINS` | Orígenes CORS permitidos | `https://tudominio.com,https://otro.com` |
+
+### 4. Deploy
+Railway detecta automáticamente el proyecto y lo despliega. Archivos de configuración incluidos:
+- `railway.json` - Configuración de Railway
+- `nixpacks.toml` - Configuración de Nixpacks
+- `Procfile` - Comando de inicio
+- `runtime.txt` - Versión de Python
+
+### 5. Health Check
+El endpoint `/health` está configurado para que Railway verifique el estado de la app.
+
 ## 📄 Licencia
 
 Este proyecto está bajo la Licencia MIT.
