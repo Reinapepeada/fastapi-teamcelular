@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Local files
+.env
+*.db
+*.sqlite3
+
+# Docs (no necesarios en producción)
+*.md
+!README.md
+
+# Otros
+Procfile
+nixpacks.toml
+runtime.txt
