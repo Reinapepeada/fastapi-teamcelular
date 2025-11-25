@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import CheckConstraint
 from sqlmodel import Field, SQLModel, Relationship, Enum as Eenum, UniqueConstraint
 from typing import List, Optional
@@ -186,17 +186,61 @@ class Discount(SQLModel, table=True):
 
 class ProductVariantCreate(BaseModel):
     product_id: int
+    branch_id: int  # OBLIGATORIO
     color: Color | None = None
     size: str | None = None
     size_unit: SizeUnit | None = None
     unit: Unit | None = None
-    branch_id: int | None = None
     stock: int = 0
     min_stock: int = 5
     images: list[str] | None = None
 
     class Config:
         from_attributes = True
+
+    @field_validator('color', mode='before')
+    @classmethod
+    def normalize_color(cls, v):
+        """Convierte valores vacíos a None"""
+        if v == '' or v is None:
+            return None
+        return v
+
+    @field_validator('size', mode='before')
+    @classmethod
+    def normalize_size(cls, v):
+        """Convierte valores vacíos a None"""
+        if v == '' or v is None:
+            return None
+        return v
+
+    @field_validator('size_unit', mode='before')
+    @classmethod
+    def normalize_size_unit(cls, v):
+        """Convierte valores vacíos a None"""
+        if v == '' or v is None:
+            return None
+        return v
+
+    @field_validator('unit', mode='before')
+    @classmethod
+    def normalize_unit(cls, v):
+        """Convierte valores vacíos a None"""
+        if v == '' or v is None:
+            return None
+        return v
+
+    @field_validator('images', mode='before')
+    @classmethod
+    def normalize_images(cls, v):
+        """Convierte lista vacía a None y filtra URLs vacías"""
+        if v is None or v == '' or v == []:
+            return None
+        if isinstance(v, list):
+            # Filtrar URLs vacías
+            filtered = [url for url in v if url and url.strip()]
+            return filtered if filtered else None
+        return v
 
 
 class ProductVariantCreateList(BaseModel):
@@ -214,6 +258,36 @@ class ProductVariantUpdate(BaseModel):
     branch_id: int | None = None
     stock: int | None = None
     images: list[str] | None = None
+
+    class Config:
+        from_attributes = True
+
+    @field_validator('branch_id', mode='before')
+    @classmethod
+    def normalize_branch_id(cls, v):
+        """Convierte 0 a None"""
+        if v == 0 or v == '0' or v == '':
+            return None
+        return v
+
+    @field_validator('color', 'size', 'size_unit', 'unit', mode='before')
+    @classmethod
+    def normalize_empty_strings(cls, v):
+        """Convierte strings vacíos a None"""
+        if v == '':
+            return None
+        return v
+
+    @field_validator('images', mode='before')
+    @classmethod
+    def normalize_images(cls, v):
+        """Filtra URLs vacías"""
+        if v is None or v == '' or v == []:
+            return None
+        if isinstance(v, list):
+            filtered = [url for url in v if url and url.strip()]
+            return filtered if filtered else None
+        return v
 
 
 class ProductImageOut(BaseModel):

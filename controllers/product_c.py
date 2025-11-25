@@ -37,14 +37,16 @@ def create_product(product: ProductCreate, session: Session):
         return create_product_db(product, session)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor al crear producto")
 
 def get_products_all(session: Session):
     try:
         return get_products_all_db(session)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener productos")
 
 
 def get_filtered_paginated_products_controller(
@@ -65,7 +67,7 @@ def get_min_max_price(session: Session):
         max_price, min_price = get_max_min_price_db(session)
         return {"max": str(max_price), "min": str(min_price)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener rango de precios")
 
 def get_products_by_id(product_id: int, session: Session):
     try:
@@ -74,7 +76,7 @@ def get_products_by_id(product_id: int, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener producto")
     
 def update_product(product_id: int, product: ProductUpdate, session: Session):
     try:
@@ -83,7 +85,7 @@ def update_product(product_id: int, product: ProductUpdate, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al actualizar producto")
 
 def delete_product(product_id: int, session: Session):
     try:
@@ -91,7 +93,7 @@ def delete_product(product_id: int, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al eliminar producto")
     
 def create_product_variant(variant: ProductVariantCreateList, session: Session):
     try:
@@ -99,13 +101,14 @@ def create_product_variant(variant: ProductVariantCreateList, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # No exponer detalles internos en producción
+        raise HTTPException(status_code=500, detail="Error interno del servidor al crear variantes")
 
 def get_product_variants_by_product_id(product_id: int, session: Session):
     try:
         return get_product_variants_by_product_id_db(product_id, session)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener variantes")
 
 def update_product_variant(variant_id: int, variant: ProductVariantUpdate, session: Session):
     try:
@@ -114,7 +117,7 @@ def update_product_variant(variant_id: int, variant: ProductVariantUpdate, sessi
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al actualizar variante")
 
 def delete_product_variant(variant_id: int, session: Session):
     try:
@@ -122,7 +125,7 @@ def delete_product_variant(variant_id: int, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al eliminar variante")
 
 
 
@@ -134,13 +137,13 @@ def create_branch(branch: BranchCreate, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al crear sucursal")
 
 def get_branches(session: Session):
     try:
         return get_branches_all(session)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener sucursales")
 
 def delete_branch(branch_id: int, session: Session):
     try:
@@ -149,7 +152,7 @@ def delete_branch(branch_id: int, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al eliminar sucursal")
 
 def update_branch(branch_id: int, branch: BranchCreate, session: Session):
     try:
@@ -158,7 +161,7 @@ def update_branch(branch_id: int, branch: BranchCreate, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al actualizar sucursal")
     
 #  brand controller
 def create_brand(brand: BrandCreate, session: Session):
@@ -168,13 +171,13 @@ def create_brand(brand: BrandCreate, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al crear marca")
 
 def get_brands(session: Session):
     try:
         return get_brands_all(session)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener marcas")
 
 def delete_brand(brand_id: int, session: Session):
     try:
@@ -183,7 +186,7 @@ def delete_brand(brand_id: int, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al eliminar marca")
 
 def update_brand(brand_id: int, brand: BrandCreate, session: Session):
     try:
@@ -192,7 +195,7 @@ def update_brand(brand_id: int, brand: BrandCreate, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al actualizar marca")
 
 
 # category controller
@@ -204,13 +207,13 @@ def create_category(category: CategoryCreate, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al crear categoría")
 
 def get_categories(session: Session):
     try:
         return get_categories_all_db(session)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al obtener categorías")
 
 def delete_category(category_id: int, session: Session):
     try:
@@ -219,7 +222,7 @@ def delete_category(category_id: int, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al eliminar categoría")
 
 def update_category(category_id: int, category: CategoryCreate, session: Session):
     try:
@@ -228,4 +231,4 @@ def update_category(category_id: int, category: CategoryCreate, session: Session
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error al actualizar categoría")

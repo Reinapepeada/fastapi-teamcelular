@@ -256,9 +256,8 @@ def create_product_variant_db(product_variants, session):
             # Validar existencia de producto
             db_product = ensure_product_exists_id(variant.product_id, session)
             
-            # Validar sucursal si se proporciona
-            if variant.branch_id:
-                ensure_branch_exists(variant.branch_id, session)
+            # Validar sucursal (es obligatoria)
+            ensure_branch_exists(variant.branch_id, session)
 
             # Validar unicidad
             ensure_unique_constraints_product_variant(
@@ -285,7 +284,7 @@ def create_product_variant_db(product_variants, session):
                 size=variant.size,
                 size_unit=variant.size_unit,
                 unit=variant.unit,
-                branch_id=variant.branch_id,
+                branch_id=variant.branch_id,  # Ahora es obligatorio
                 stock=variant.stock,
                 min_stock=variant.min_stock,
             )
@@ -301,9 +300,16 @@ def create_product_variant_db(product_variants, session):
 
         return db_variants
 
+    except ValueError as e:
+        session.rollback()
+        raise ValueError(str(e))
     except Exception as e:
         session.rollback()
-        raise RuntimeError(f"Error al crear variantes de producto: {e}")
+        # No exponer detalles internos de la BD en producción
+        error_msg = str(e)
+        if "ForeignKeyViolation" in error_msg or "foreign key" in error_msg.lower():
+            raise ValueError("Error de referencia: Verifica que el producto, sucursal y otros IDs existan")
+        raise ValueError(f"Error al crear variantes de producto")
 
 
 def get_product_variants_by_product_id_db(product_id: int, session):
