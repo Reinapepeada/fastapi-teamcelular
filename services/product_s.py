@@ -255,7 +255,71 @@ def get_max_min_price_db(session):
 # =============================================
 
 def create_product_variant_db(product_variants, session):
-    """Crea o actualiza variantes para un producto existente"""
+    """Crea variantes para un producto existente (falla si ya existe)"""
+    try:
+        db_variants = []
+        for variant in product_variants.variants:
+            # Validar existencia de producto
+            db_product = ensure_product_exists_id(variant.product_id, session)
+            
+            # Validar sucursal (es obligatoria)
+            ensure_branch_exists(variant.branch_id, session)
+
+            # Validar que NO exista (solo crear, no actualizar)
+            ensure_unique_constraints_product_variant(
+                variant.product_id,
+                variant.color,
+                variant.size,
+                variant.size_unit,
+                variant.unit,
+                session,
+            )
+
+            # Generar SKU
+            sku = generate_sku(
+                product_name=db_product.name,
+                category_id=db_product.category_id,
+                brand_id=db_product.brand_id,
+            )
+
+            # Crear variante nueva
+            db_variant = ProductVariant(
+                product_id=variant.product_id,
+                sku=sku,
+                color=variant.color,
+                size=variant.size,
+                size_unit=variant.size_unit,
+                unit=variant.unit,
+                branch_id=variant.branch_id,
+                stock=variant.stock,
+                min_stock=variant.min_stock,
+            )
+            session.add(db_variant)
+            session.commit()
+            session.refresh(db_variant)
+
+            # Agregar imágenes si existen
+            if variant.images:
+                persist_product_images(variant.images, db_variant.id, session)
+            
+            db_variants.append(db_variant)
+
+        return db_variants
+
+    except ValueError as e:
+        session.rollback()
+        raise ValueError(str(e))
+    except Exception as e:
+        session.rollback()
+        # No exponer detalles internos de la BD en producción
+        error_msg = str(e)
+        if "ForeignKeyViolation" in error_msg or "foreign key" in error_msg.lower():
+            raise ValueError("Error de referencia: Verifica que el producto, sucursal y otros IDs existan")
+        raise ValueError(f"Error al crear variantes de producto")
+
+
+def upsert_product_variant_db(product_variants, session):
+    """Crea o actualiza variantes (upsert) - Si existe, actualiza; si no, crea"""
     try:
         db_variants = []
         for variant in product_variants.variants:
@@ -276,7 +340,7 @@ def create_product_variant_db(product_variants, session):
             )
 
             if existing_variant:
-                # Actualizar variante existente
+                # ACTUALIZAR variante existente
                 existing_variant.branch_id = variant.branch_id
                 existing_variant.stock = variant.stock
                 existing_variant.min_stock = variant.min_stock
@@ -289,14 +353,13 @@ def create_product_variant_db(product_variants, session):
                 
                 db_variants.append(existing_variant)
             else:
-                # Generar SKU
+                # CREAR variante nueva
                 sku = generate_sku(
                     product_name=db_product.name,
                     category_id=db_product.category_id,
                     brand_id=db_product.brand_id,
                 )
 
-                # Crear variante nueva
                 db_variant = ProductVariant(
                     product_id=variant.product_id,
                     sku=sku,
@@ -325,11 +388,10 @@ def create_product_variant_db(product_variants, session):
         raise ValueError(str(e))
     except Exception as e:
         session.rollback()
-        # No exponer detalles internos de la BD en producción
         error_msg = str(e)
         if "ForeignKeyViolation" in error_msg or "foreign key" in error_msg.lower():
             raise ValueError("Error de referencia: Verifica que el producto, sucursal y otros IDs existan")
-        raise ValueError(f"Error al crear variantes de producto")
+        raise ValueError(f"Error en upsert de variantes de producto")
 
 
 def get_product_variants_by_product_id_db(product_id: int, session):

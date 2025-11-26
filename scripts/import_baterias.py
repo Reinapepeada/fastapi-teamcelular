@@ -434,12 +434,12 @@ def obtener_variantes_producto(token, product_id):
 
 
 def crear_variante(token, product_id, branch_id, imagenes_urls):
-    """Crea una variante del producto. Si ya existe, ignora el error."""
+    """Crea o actualiza una variante del producto (upsert)."""
     headers = {"Authorization": f"Bearer {token}"}
     
-    # Crear nueva variante
-    response = requests.post(
-        f"{API_URL}/products/create/variant",
+    # Usar endpoint upsert: crea si no existe, actualiza si existe
+    response = requests.put(
+        f"{API_URL}/products/upsert/variant",
         headers=headers,
         json={
             "variants": [{
@@ -453,13 +453,10 @@ def crear_variante(token, product_id, branch_id, imagenes_urls):
     )
     
     if response.status_code in [200, 201]:
-        print(f"  ✅ Variante creada con imágenes")
+        print(f"  ✅ Variante creada/actualizada con imágenes")
         return True
-    elif "ya existe" in response.text.lower() or "unique" in response.text.lower():
-        print(f"  ℹ️ Variante ya existía")
-        return True  # No es error, simplemente ya existe
     else:
-        print(f"  ⚠️ Error creando variante: {response.text}")
+        print(f"  ⚠️ Error en variante: {response.text}")
         return False
 
 

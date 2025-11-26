@@ -19,6 +19,7 @@ from controllers.product_c import (
     get_product_variants_by_product_id,
     get_products_all,
     get_products_by_id, update_product, update_product_variant,
+    upsert_product_variant,
     get_min_max_price
 )
 from services.auth_s import RequireEditorOrHigher, RequireAdminOrHigher
@@ -125,8 +126,18 @@ def create_product_variant_endp(
     session: SessionDep,
     admin: RequireEditorOrHigher
 ):
-    """Crear variantes - REQUIERE AUTH (Editor+)"""
+    """Crear variantes - REQUIERE AUTH (Editor+). Falla si ya existe."""
     return create_product_variant(variant, session)
+
+
+@router.put("/upsert/variant")
+def upsert_product_variant_endp(
+    variant: ProductVariantCreateList,
+    session: SessionDep,
+    admin: RequireEditorOrHigher
+):
+    """Crear o actualizar variantes - REQUIERE AUTH (Editor+). Si existe, actualiza; si no, crea."""
+    return upsert_product_variant(variant, session)
 
 
 @router.put("/update/variant")

@@ -23,7 +23,8 @@ from services.product_s import (
     get_product_variants_by_product_id_db,
     get_products_all_db,
     update_product_db,
-    update_product_variant_db
+    update_product_variant_db,
+    upsert_product_variant_db
 )
 
 # Crud operations for auxiliary tables
@@ -103,6 +104,17 @@ def create_product_variant(variant: ProductVariantCreateList, session: Session):
     except Exception as e:
         # No exponer detalles internos en producción
         raise HTTPException(status_code=500, detail="Error interno del servidor al crear variantes")
+
+
+def upsert_product_variant(variant: ProductVariantCreateList, session: Session):
+    """Crea o actualiza variantes (si existe actualiza, si no crea)"""
+    try:
+        return upsert_product_variant_db(variant, session)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error en upsert de variantes")
+
 
 def get_product_variants_by_product_id(product_id: int, session: Session):
     try:
