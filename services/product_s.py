@@ -73,8 +73,8 @@ def ensure_product_variant_exists(variant_id: int, session):
     return variant
 
 
-def ensure_unique_constraints_product_variant(product_id, color, size, size_unit, unit, session):
-    """Verifica unicidad de variante"""
+def find_existing_variant(product_id, color, size, size_unit, unit, session):
+    """Busca una variante existente con las mismas características"""
     variant = session.exec(
         select(ProductVariant).where(
             (ProductVariant.product_id == product_id)
@@ -84,6 +84,12 @@ def ensure_unique_constraints_product_variant(product_id, color, size, size_unit
             & (ProductVariant.unit == unit)
         )
     ).first()
+    return variant
+
+
+def ensure_unique_constraints_product_variant(product_id, color, size, size_unit, unit, session):
+    """Verifica unicidad de variante"""
+    variant = find_existing_variant(product_id, color, size, size_unit, unit, session)
     if variant:
         raise ValueError("Ya existe una variante con las mismas características de color, tamaño y unidad.")
     return variant
@@ -249,7 +255,7 @@ def get_max_min_price_db(session):
 # =============================================
 
 def create_product_variant_db(product_variants, session):
-    """Crea variantes para un producto existente"""
+    """Crea o actualiza variantes para un producto existente"""
     try:
         db_variants = []
         for variant in product_variants.variants:
@@ -259,8 +265,8 @@ def create_product_variant_db(product_variants, session):
             # Validar sucursal (es obligatoria)
             ensure_branch_exists(variant.branch_id, session)
 
-            # Validar unicidad
-            ensure_unique_constraints_product_variant(
+            # Buscar si ya existe una variante con las mismas características
+            existing_variant = find_existing_variant(
                 variant.product_id,
                 variant.color,
                 variant.size,
@@ -269,34 +275,48 @@ def create_product_variant_db(product_variants, session):
                 session,
             )
 
-            # Generar SKU
-            sku = generate_sku(
-                product_name=db_product.name,
-                category_id=db_product.category_id,
-                brand_id=db_product.brand_id,
-            )
+            if existing_variant:
+                # Actualizar variante existente
+                existing_variant.branch_id = variant.branch_id
+                existing_variant.stock = variant.stock
+                existing_variant.min_stock = variant.min_stock
+                session.commit()
+                session.refresh(existing_variant)
+                
+                # Agregar imágenes si existen
+                if variant.images:
+                    persist_product_images(variant.images, existing_variant.id, session)
+                
+                db_variants.append(existing_variant)
+            else:
+                # Generar SKU
+                sku = generate_sku(
+                    product_name=db_product.name,
+                    category_id=db_product.category_id,
+                    brand_id=db_product.brand_id,
+                )
 
-            # Crear variante
-            db_variant = ProductVariant(
-                product_id=variant.product_id,
-                sku=sku,
-                color=variant.color,
-                size=variant.size,
-                size_unit=variant.size_unit,
-                unit=variant.unit,
-                branch_id=variant.branch_id,  # Ahora es obligatorio
-                stock=variant.stock,
-                min_stock=variant.min_stock,
-            )
-            session.add(db_variant)
-            session.commit()
-            session.refresh(db_variant)
+                # Crear variante nueva
+                db_variant = ProductVariant(
+                    product_id=variant.product_id,
+                    sku=sku,
+                    color=variant.color,
+                    size=variant.size,
+                    size_unit=variant.size_unit,
+                    unit=variant.unit,
+                    branch_id=variant.branch_id,
+                    stock=variant.stock,
+                    min_stock=variant.min_stock,
+                )
+                session.add(db_variant)
+                session.commit()
+                session.refresh(db_variant)
 
-            # Agregar imágenes si existen
-            if variant.images:
-                persist_product_images(variant.images, db_variant.id, session)
-            
-            db_variants.append(db_variant)
+                # Agregar imágenes si existen
+                if variant.images:
+                    persist_product_images(variant.images, db_variant.id, session)
+                
+                db_variants.append(db_variant)
 
         return db_variants
 
