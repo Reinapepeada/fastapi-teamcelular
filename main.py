@@ -7,11 +7,29 @@ from routers import product_r, branches_r, categories_r, brands_r, admin_r
 from database.connection.SQLConection import create_db_and_tables
 # Importar modelo Admin para que SQLModel lo registre
 from database.models.admin import Admin  # noqa: F401
+import subprocess
+from pathlib import Path
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Evento de inicio: crea las tablas en la base de datos."""
+    # Ejecutar migraciones Alembic (si alembic está disponible)
+    try:
+        # Ejecutar en el directorio del proyecto para que alembic encuentre alembic.ini
+        cwd = Path(__file__).parent
+        result = subprocess.run(["alembic", "upgrade", "head"], cwd=cwd, capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ Migraciones Alembic aplicadas correctamente")
+        else:
+            # Mostrar advertencia y continuar (creación de tablas fallback más abajo)
+            print(f"⚠️ Advertencia migraciones: {result.stderr}")
+    except FileNotFoundError:
+        print("⚠️ Alembic no encontrado en el entorno, saltando migraciones automáticas")
+    except Exception as e:
+        print(f"⚠️ Error ejecutando migraciones automáticas: {e}")
+
+    # Crear tablas si aún es necesario (fallback)
     create_db_and_tables()
     yield
 
