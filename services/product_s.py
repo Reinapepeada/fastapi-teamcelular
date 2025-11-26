@@ -333,11 +333,12 @@ def create_product_variant_db(product_variants, session):
         raise ValueError(str(e))
     except Exception as e:
         session.rollback()
-        # No exponer detalles internos de la BD en producción
+        # Incluir mensaje de error original para depuración (mostrar en respuesta HTTP)
         error_msg = str(e)
         if "ForeignKeyViolation" in error_msg or "foreign key" in error_msg.lower():
             raise ValueError("Error de referencia: Verifica que el producto, sucursal y otros IDs existan")
-        raise ValueError(f"Error al crear variantes de producto")
+        # Agregar el mensaje original para ayudar a diagnosticar el problema
+        raise ValueError(f"Error al crear variantes de producto: {error_msg}")
 
 
 def upsert_product_variant_db(product_variants, session):
@@ -413,7 +414,8 @@ def upsert_product_variant_db(product_variants, session):
         error_msg = str(e)
         if "ForeignKeyViolation" in error_msg or "foreign key" in error_msg.lower():
             raise ValueError("Error de referencia: Verifica que el producto, sucursal y otros IDs existan")
-        raise ValueError(f"Error en upsert de variantes de producto")
+        # Incluir mensaje de error original temporalmente para depuración
+        raise ValueError(f"Error en upsert de variantes de producto: {error_msg}")
 
 
 def get_product_variants_by_product_id_db(product_id: int, session):

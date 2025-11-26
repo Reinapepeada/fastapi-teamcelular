@@ -436,28 +436,99 @@ def obtener_variantes_producto(token, product_id):
 def crear_variante(token, product_id, branch_id, imagenes_urls):
     """Crea o actualiza una variante del producto (upsert)."""
     headers = {"Authorization": f"Bearer {token}"}
-    
-    # Usar endpoint upsert: crea si no existe, actualiza si existe
+
+    payload = {
+        "variants": [{
+            "product_id": product_id,
+            "branch_id": branch_id,
+            "stock": 10,
+            "min_stock": 2,
+            "images": imagenes_urls if imagenes_urls else None
+        }]
+    }
+
+    # Intentar upsert primero
+    print(f"   ▶️ Enviando upsert variante payload: product_id={product_id}, branch_id={branch_id}, images={len(imagenes_urls) if imagenes_urls else 0}")
+    try:
+        print("   ▶️ Payload (upsert):")
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    except Exception:
+        pass
     response = requests.put(
         f"{API_URL}/products/upsert/variant",
         headers=headers,
-        json={
-            "variants": [{
-                "product_id": product_id,
-                "branch_id": branch_id,
-                "stock": 10,
-                "min_stock": 2,
-                "images": imagenes_urls if imagenes_urls else []
-            }]
-        }
+        json=payload
     )
-    
+
     if response.status_code in [200, 201]:
         print(f"  ✅ Variante creada/actualizada con imágenes")
         return True
-    else:
-        print(f"  ⚠️ Error en variante: {response.text}")
-        return False
+
+    # Si falla, mostrar detalle y probar fallback a create
+    print(f"  ⚠️ Upsert falló (status {response.status_code}): {response.text}")
+    try:
+        print("  ▶️ Respuesta JSON upsert:")
+        print(response.json())
+    except Exception:
+        pass
+
+    try:
+        # Intentar crear variante (puede dar error si ya existe)
+        print("   ▶️ Intentando crear variante via /create/variant como fallback...")
+        try:
+            print("   ▶️ Payload (create):")
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        except Exception:
+            pass
+        create_resp = requests.post(
+            f"{API_URL}/products/create/variant",
+            headers=headers,
+            json=payload
+        )
+        if create_resp.status_code in [200, 201]:
+            print(f"  ✅ Variante creada via create/variant")
+            return True
+        print(f"  ⚠️ Create fallback falló (status {create_resp.status_code}): {create_resp.text}")
+        try:
+            print("  ▶️ Respuesta JSON create:")
+            print(create_resp.json())
+        except Exception:
+            pass
+
+        # Último recurso: obtener el producto (incluye variantes) y actualizar la primera variante
+        print("   ▶️ Buscando variantes existentes dentro del producto para actualizar imágenes...")
+        prod_resp = requests.get(
+            f"{API_URL}/products/get/{product_id}",
+            headers=headers
+        )
+        if prod_resp.status_code == 200:
+            producto = prod_resp.json()
+            variants = producto.get("variants") or []
+            if variants:
+                # Tomar la primera variante y actualizarla
+                vid = variants[0].get("id")
+                if vid:
+                    print(f"   ▶️ Actualizando variante existente id={vid} con imágenes")
+                    upd_resp = requests.put(
+                        f"{API_URL}/products/update/variant",
+                        headers=headers,
+                        params={"variant_id": vid},
+                        json={"images": imagenes_urls or []}
+                    )
+                    if upd_resp.status_code in [200, 201]:
+                        print(f"  ✅ Variante actualizada con imágenes (update endpoint)")
+                        return True
+                    else:
+                        print(f"  ⚠️ Update endpoint falló (status {upd_resp.status_code}): {upd_resp.text}")
+            else:
+                print("  ℹ️ El producto no tiene variantes registradas aún")
+        else:
+            print(f"  ⚠️ No se pudo obtener el producto (status {prod_resp.status_code}): {prod_resp.text}")
+
+    except Exception as e:
+        print(f"  ❌ Excepción durante fallback de variantes: {e}")
+
+    return False
 
 
 def generar_payload_producto(serial, nombre, descripcion, costo, precio, categoria_id, marca_id, branch_id, imagenes_locales):
