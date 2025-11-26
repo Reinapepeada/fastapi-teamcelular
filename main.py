@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
 
     # Crear tablas si aún es necesario (fallback)
     create_db_and_tables()
+    print("🚀 Backend listo con migraciones aplicadas")  # Cambio menor para forzar redeploy
     yield
 
 
