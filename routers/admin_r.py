@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
+from sqlalchemy import text
 
 from database.connection.SQLConection import get_session
 from database.models.admin import (
@@ -225,3 +226,67 @@ def delete_admin(
     session.commit()
     
     return {"msg": "Admin eliminado correctamente"}
+
+
+@router.get("/debug/schema")
+def debug_schema(current_admin: RequireSuperAdmin, session: Annotated[Session, Depends(get_session)]):
+    """
+    Endpoint de depuración (SUPER_ADMIN): retorna el udt_name de la columna `productvariant.color`.
+    """
+    try:
+        udt = session.exec(text("SELECT udt_name FROM information_schema.columns WHERE table_name = 'productvariant' AND column_name = 'color' ")).first()
+        udt_name = udt and udt[0] or None
+        return {"udt_name": udt_name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener el schema: {e}")
+
+
+@router.get("/debug/invalid-colors")
+def debug_invalid_colors(current_admin: RequireSuperAdmin, session: Annotated[Session, Depends(get_session)]):
+    """
+    Endpoint de depuración (SUPER_ADMIN): retorna los valores invalidos en la columna color.
+    """
+    allowed = [
+        'ROJO','AZUL','VERDE','AMARILLO','NARANJA','VIOLETA','ROSADO','MARRON','GRIS','BLANCO','NEGRO','BORDO'
+    ]
+    # Construir params para la query
+    placeholders = ", ".join([f":val{i}" for i in range(len(allowed))])
+    q = text(f"SELECT DISTINCT color FROM productvariant WHERE color IS NOT NULL AND color::text NOT IN ({placeholders})")
+    params = {f"val{i}": v for i, v in enumerate(allowed)}
+    try:
+        rows = session.exec(q, params).all()
+        invalids = [r[0] for r in rows]
+        return {"invalid_colors": invalids}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al buscar valores invalidos: {e}")
+
+
+@router.post("/debug/fix-color")
+def debug_fix_color(current_admin: RequireSuperAdmin, session: Annotated[Session, Depends(get_session)]):
+    """
+    Endpoint de depuración (SUPER_ADMIN): limpia valores inválidos y, si es necesario, convierte la columna a enum `color`.
+    """
+    allowed = [
+        'ROJO','AZUL','VERDE','AMARILLO','NARANJA','VIOLETA','ROSADO','MARRON','GRIS','BLANCO','NEGRO','BORDO'
+    ]
+    placeholders = ", ".join([f":val{i}" for i in range(len(allowed))])
+    try:
+        # 1) Limpiar valores inválidos
+        u = text(f"UPDATE productvariant SET color = NULL WHERE color IS NOT NULL AND color::text NOT IN ({placeholders})")
+        params = {f"val{i}": v for i, v in enumerate(allowed)}
+        res = session.exec(u, params)
+        session.commit()
+
+        # 2) Verificar udt_name y alterar tipo si es necesario
+        udt = session.exec(text("SELECT udt_name FROM information_schema.columns WHERE table_name = 'productvariant' AND column_name = 'color'")).first()
+        udt_name = udt and udt[0] or None
+        if udt_name != 'color':
+            session.exec(text("ALTER TABLE productvariant ALTER COLUMN color TYPE color USING (color::text::color);"))
+            session.exec(text("ALTER TABLE productvariant ALTER COLUMN color DROP NOT NULL;"))
+            session.commit()
+
+        new_udt = session.exec(text("SELECT udt_name FROM information_schema.columns WHERE table_name = 'productvariant' AND column_name = 'color' ")).first()
+        return {"ok": True, "udt_name_after": new_udt and new_udt[0] or None}
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Error aplicando fix: {e}")
