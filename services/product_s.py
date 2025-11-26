@@ -74,15 +74,37 @@ def ensure_product_variant_exists(variant_id: int, session):
 
 
 def find_existing_variant(product_id, color, size, size_unit, unit, session):
-    """Busca una variante existente con las mismas características"""
+    """Busca una variante existente con las mismas características.
+    Maneja correctamente comparaciones con NULL en SQL.
+    """
+    from sqlalchemy import and_, or_
+    
+    # Construir condiciones dinámicamente para manejar NULL correctamente
+    conditions = [ProductVariant.product_id == product_id]
+    
+    # Para cada campo opcional, usar IS NULL si es None, o == si tiene valor
+    if color is None:
+        conditions.append(ProductVariant.color.is_(None))
+    else:
+        conditions.append(ProductVariant.color == color)
+    
+    if size is None:
+        conditions.append(ProductVariant.size.is_(None))
+    else:
+        conditions.append(ProductVariant.size == size)
+    
+    if size_unit is None:
+        conditions.append(ProductVariant.size_unit.is_(None))
+    else:
+        conditions.append(ProductVariant.size_unit == size_unit)
+    
+    if unit is None:
+        conditions.append(ProductVariant.unit.is_(None))
+    else:
+        conditions.append(ProductVariant.unit == unit)
+    
     variant = session.exec(
-        select(ProductVariant).where(
-            (ProductVariant.product_id == product_id)
-            & (ProductVariant.color == color)
-            & (ProductVariant.size == size)
-            & (ProductVariant.size_unit == size_unit)
-            & (ProductVariant.unit == unit)
-        )
+        select(ProductVariant).where(and_(*conditions))
     ).first()
     return variant
 
