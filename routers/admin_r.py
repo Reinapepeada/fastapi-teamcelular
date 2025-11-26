@@ -234,14 +234,9 @@ def debug_schema(current_admin: RequireSuperAdmin, session: Annotated[Session, D
     Endpoint de depuración (SUPER_ADMIN): retorna el udt_name de la columna `productvariant.color`.
     """
     try:
-            udt = session.exec(text("SELECT udt_name, column_default FROM information_schema.columns WHERE table_name = 'productvariant' AND column_name = 'color' ")).first()
-            if udt:
-                udt_name = udt[0]
-                column_default = udt[1]
-            else:
-                udt_name = None
-                column_default = None
-            return {"udt_name": udt_name, "column_default": column_default}
+        udt = session.exec(text("SELECT udt_name FROM information_schema.columns WHERE table_name = 'productvariant' AND column_name = 'color' ")).first()
+        udt_name = udt and udt[0] or None
+        return {"udt_name": udt_name}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener el schema: {e}")
 
