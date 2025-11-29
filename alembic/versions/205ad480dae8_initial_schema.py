@@ -39,18 +39,67 @@ def upgrade() -> None:
     conn = op.get_bind()
     
     # Create ENUM types if they don't exist
-    if not enum_exists(conn, 'adminrole'):
-        op.execute("CREATE TYPE adminrole AS ENUM ('SUPER_ADMIN', 'ADMIN', 'EDITOR')")
-    if not enum_exists(conn, 'warrantyunit'):
-        op.execute("CREATE TYPE warrantyunit AS ENUM ('DAYS', 'MONTHS', 'YEARS')")
-    if not enum_exists(conn, 'productstatus'):
-        op.execute("CREATE TYPE productstatus AS ENUM ('ACTIVE', 'INACTIVE', 'DISCONTINUED')")
-    if not enum_exists(conn, 'color'):
-        op.execute("CREATE TYPE color AS ENUM ('ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'NARANJA', 'VIOLETA', 'ROSADO', 'MARRON', 'GRIS', 'BLANCO', 'NEGRO', 'BORDO')")
-    if not enum_exists(conn, 'sizeunit'):
-        op.execute("CREATE TYPE sizeunit AS ENUM ('CLOTHING', 'DIMENSIONS', 'WEIGHT', 'OTHER')")
-    if not enum_exists(conn, 'unit'):
-        op.execute("CREATE TYPE unit AS ENUM ('KG', 'G', 'LB', 'CM', 'M', 'INCH', 'XS', 'S', 'L', 'XL', 'XXL')")
+    # Create ENUM types if they don't exist — use idempotent DO blocks
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'adminrole') THEN
+                CREATE TYPE adminrole AS ENUM ('SUPER_ADMIN', 'ADMIN', 'EDITOR');
+            END IF;
+        END$$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'warrantyunit') THEN
+                CREATE TYPE warrantyunit AS ENUM ('DAYS', 'MONTHS', 'YEARS');
+            END IF;
+        END$$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'productstatus') THEN
+                CREATE TYPE productstatus AS ENUM ('ACTIVE', 'INACTIVE', 'DISCONTINUED');
+            END IF;
+        END$$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'color') THEN
+                CREATE TYPE color AS ENUM ('ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'NARANJA', 'VIOLETA', 'ROSADO', 'MARRON', 'GRIS', 'BLANCO', 'NEGRO', 'BORDO');
+            END IF;
+        END$$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sizeunit') THEN
+                CREATE TYPE sizeunit AS ENUM ('CLOTHING', 'DIMENSIONS', 'WEIGHT', 'OTHER');
+            END IF;
+        END$$;
+        """
+    )
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'unit') THEN
+                CREATE TYPE unit AS ENUM ('KG', 'G', 'LB', 'CM', 'M', 'INCH', 'XS', 'S', 'L', 'XL', 'XXL');
+            END IF;
+        END$$;
+        """
+    )
     
     # Create admin table
     if not table_exists(conn, 'admin'):
