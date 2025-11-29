@@ -23,8 +23,7 @@ def normalize_db_url(db_url: Optional[str]) -> Optional[str]:
 
 
 def wait_for_db(database_url: Optional[str]) -> bool:
-    from sqlalchemy import create_engine
-
+    from sqlalchemy import create_engine, text
     if not database_url:
         print("ERROR: DATABASE_URL not set; cannot wait for DB.")
         return False
@@ -35,7 +34,8 @@ def wait_for_db(database_url: Optional[str]) -> bool:
     while attempt < RETRY_ATTEMPTS:
         try:
             with engine.connect() as conn:
-                conn.execute("SELECT 1")
+                # Use SQLAlchemy text() to make the SQL string executable
+                conn.execute(text("SELECT 1"))
             print("Database is available")
             return True
         except Exception as e:
