@@ -52,6 +52,8 @@ def run_alembic():
     try:
         subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
         print("Alembic migrations applied")
+        # Set env var to signal migrations are done
+        os.environ["ALEMBIC_RUN"] = "1"
         return True
     except subprocess.CalledProcessError as e:
         print(f"Alembic failed: {e}")
