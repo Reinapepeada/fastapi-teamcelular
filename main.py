@@ -78,7 +78,16 @@ def read_root():
 @app.get("/health")
 def health_check():
     """Health check endpoint para Railway."""
-    return {"status": "healthy"}
+    # Check DB connectivity quickly
+    from database.connection.SQLConection import engine as db_engine
+    try:
+        with db_engine.connect() as conn:
+            conn.execute("SELECT 1")
+        return {"status": "healthy"}
+    except Exception as e:
+        # Return 503 so Railway healthcheck knows when DB is not available
+        from fastapi import Response
+        return Response(content='{"status":"unhealthy","detail":"DB unreachable"}', status_code=503, media_type="application/json")
 
 
 

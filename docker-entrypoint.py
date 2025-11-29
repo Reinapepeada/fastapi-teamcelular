@@ -11,7 +11,8 @@ import subprocess
 from typing import Optional
 
 RETRY_INTERVAL = float(os.getenv("DB_RETRY_INTERVAL", "2"))
-RETRY_ATTEMPTS = int(os.getenv("DB_RETRY_ATTEMPTS", "30"))
+# Increase default attempts to 60 so slow DBs get more time to start in CI/PAAS
+RETRY_ATTEMPTS = int(os.getenv("DB_RETRY_ATTEMPTS", "60"))
 
 
 def normalize_db_url(db_url: Optional[str]) -> Optional[str]:
@@ -91,6 +92,7 @@ def main():
 
     database_url = normalize_db_url(os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL"))
 
+    print(f"DB wait settings: attempts={RETRY_ATTEMPTS}, interval={RETRY_INTERVAL}s")
     if not wait_for_db(database_url):
         print("ERROR: database unavailable; exiting")
         sys.exit(1)
@@ -125,6 +127,19 @@ def main():
                 print("Table 'admin' exists:", bool(admin_table))
             except Exception as e:
                 print("Could not query information_schema.tables:", e)
+
+            # Optional: print counts for key tables if POST_MIGRATION_DIAG is set
+            try:
+                if os.getenv("POST_MIGRATION_DIAG", "0") == "1":
+                    tables_to_check = ["admin", "product", "productvariant", "productimage"]
+                    for t in tables_to_check:
+                        try:
+                            cnt = conn.execute(text(f"SELECT COUNT(*) FROM {t};")).scalar()
+                            print(f"Table {t} count: {cnt}")
+                        except Exception as e:
+                            print(f"Could not count table {t}:", e)
+            except Exception as e:
+                print("Error running table counts diag:", e)
 
         print("--- End diagnostics ---")
     except Exception as e:
