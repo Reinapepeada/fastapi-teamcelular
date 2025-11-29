@@ -138,7 +138,8 @@ class ProductVariant(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="product.id", nullable=False)
     sku: str = Field(index=True, nullable=False, unique=True)
-    color: Color | None = Eenum(Color, nullable=True, default=None, index=True)
+    # WORKAROUND TEMPORAL: Usar str en lugar de Enum hasta que se aplique la migración
+    color: str | None = Field(nullable=True, default=None, index=True, max_length=50)
     size: str | None = Field(nullable=True, default=None, index=True)
     size_unit: SizeUnit | None = Eenum(SizeUnit, nullable=True, default=None)
     unit: Unit | None = Eenum(Unit, nullable=True)
@@ -187,7 +188,8 @@ class Discount(SQLModel, table=True):
 class ProductVariantCreate(BaseModel):
     product_id: int
     branch_id: int  # OBLIGATORIO
-    color: Color | None = None
+    # WORKAROUND TEMPORAL: Usar str en lugar de Color enum
+    color: str | None = None
     size: str | None = None
     size_unit: SizeUnit | None = None
     unit: Unit | None = None
@@ -251,7 +253,8 @@ class ProductVariantCreateList(BaseModel):
 
 
 class ProductVariantUpdate(BaseModel):
-    color: Color | None = None
+    # WORKAROUND TEMPORAL: Usar str en lugar de Color enum
+    color: str | None = None
     size: str | None = None
     size_unit: SizeUnit | None = None
     unit: Unit | None = None

@@ -65,6 +65,20 @@ El script creará:
 - **Categoría:** "Reparaciones"
 - **Marcas:** CK, JC, AMPSENTRIX
 - **35 productos** de baterías con sus precios
+- **Variantes** para cada producto con sus imágenes
+- Si ejecutas el script nuevamente, **actualizará** los productos y **reemplazará** las imágenes
+
+---
+
+## 🔄 Variantes e Imágenes
+
+El script crea automáticamente:
+- **Una variante por producto** (sin color/talla, productos simples)
+- **Imágenes asociadas** a cada variante desde las carpetas locales
+- Si ejecutas el script nuevamente:
+  - Actualiza los productos existentes
+  - **Reemplaza las imágenes antiguas** con las nuevas
+  - No crea duplicados
 
 ---
 
@@ -80,4 +94,24 @@ pip install requests
 - Asegúrate de tener rol EDITOR o superior
 
 **"Producto ya existe":**
-- El script omite productos duplicados automáticamente
+- El script actualiza productos existentes automáticamente
+
+**"Error creando variante":**
+- Verifica que exista al menos una sucursal (Branch) en la base de datos
+- El script usa la primera sucursal disponible
+
+---
+
+## 🧪 Verificar Resultados
+
+Después de ejecutar el script, puedes verificar que todo se creó correctamente:
+
+```bash
+python scripts/test_variantes.py
+```
+
+Este script te mostrará:
+- Cuántas baterías se importaron
+- Cuántas variantes se crearon
+- Cuántas imágenes se asociaron
+- Qué productos tienen problemas (si los hay)
