@@ -434,9 +434,23 @@ def update_product_variant_db(variant_id: int, variant: ProductVariantUpdate, se
     """Actualiza una variante"""
     try:
         db_variant = ensure_product_variant_exists(variant_id, session)
+        
+        # Actualizar campos excepto imágenes
         for key, value in variant.model_dump(exclude_unset=True).items():
-            if key != "images":  # Manejar imágenes por separado
+            if key != "images":
                 setattr(db_variant, key, value)
+        
+        # Manejar imágenes si se proporcionan
+        if variant.images is not None:
+            # Eliminar imágenes existentes
+            for img in db_variant.images:
+                session.delete(img)
+            session.flush()
+            
+            # Agregar nuevas imágenes
+            if variant.images:
+                persist_product_images(variant.images, variant_id, session)
+        
         session.commit()
         session.refresh(db_variant)
         return db_variant
@@ -465,7 +479,9 @@ def persist_product_images(images: List[str], variant_id: int, session):
     """Guarda imágenes de una variante"""
     try:
         ensure_product_variant_exists(variant_id, session)
-        for url_img in images:
+        # Filtrar URLs vacías o None
+        valid_images = [url for url in images if url and url.strip()]
+        for url_img in valid_images:
             session.add(ProductImage(image_url=str(url_img), variant_id=variant_id))
         session.commit()
     except Exception as e:

@@ -82,17 +82,14 @@ def run_alembic():
 
 
 def main():
-    # Load environment vars from .env if present
     try:
         from dotenv import load_dotenv
-
         load_dotenv()
     except Exception:
         pass
 
     database_url = normalize_db_url(os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL"))
 
-    print(f"DB wait settings: attempts={RETRY_ATTEMPTS}, interval={RETRY_INTERVAL}s")
     if not wait_for_db(database_url):
         print("ERROR: database unavailable; exiting")
         sys.exit(1)
@@ -101,51 +98,6 @@ def main():
         print("ERROR: Alembic migration failed; exiting")
         sys.exit(1)
 
-    # After migrations, run diagnostics (alembic_version, enum and table checks)
-    try:
-        from sqlalchemy import create_engine, text
-        print("--- Post-migration DB diagnostics ---")
-        db_engine = create_engine(database_url, pool_pre_ping=True)
-        with db_engine.connect() as conn:
-            # Which DB did we connect to? (masked)
-            print("Connected to:", mask_db_url(database_url))
-            try:
-                res = conn.execute(text("SELECT version_num FROM alembic_version;"))
-                rows = [r[0] for r in res.fetchall()]
-                print("Alembic version(s):", rows)
-            except Exception as e:
-                print("Alembic version table not found or error:", e)
-
-            try:
-                adminrole = conn.execute(text("SELECT typname FROM pg_type WHERE typname = 'adminrole';")).scalar()
-                print("Enum 'adminrole' exists:", bool(adminrole))
-            except Exception as e:
-                print("Could not query pg_type for adminrole:", e)
-
-            try:
-                admin_table = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'admin';")).scalar()
-                print("Table 'admin' exists:", bool(admin_table))
-            except Exception as e:
-                print("Could not query information_schema.tables:", e)
-
-            # Optional: print counts for key tables if POST_MIGRATION_DIAG is set
-            try:
-                if os.getenv("POST_MIGRATION_DIAG", "0") == "1":
-                    tables_to_check = ["admin", "product", "productvariant", "productimage"]
-                    for t in tables_to_check:
-                        try:
-                            cnt = conn.execute(text(f"SELECT COUNT(*) FROM {t};")).scalar()
-                            print(f"Table {t} count: {cnt}")
-                        except Exception as e:
-                            print(f"Could not count table {t}:", e)
-            except Exception as e:
-                print("Error running table counts diag:", e)
-
-        print("--- End diagnostics ---")
-    except Exception as e:
-        print("Error running post-migration diagnostics:", e)
-
-    # Exec uvicorn (replace process). If user passed command args, use them.
     cmd = [
         "uvicorn",
         "main:app",
@@ -155,11 +107,10 @@ def main():
         os.getenv("PORT", "8000"),
     ]
 
-    # Allow overriding via CMD/args
     if len(sys.argv) > 1:
         cmd = sys.argv[1:]
 
-    print("Starting server with:", " ".join(cmd))
+    print("Starting server...")
     os.execvp(cmd[0], cmd)
 
 

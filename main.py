@@ -14,26 +14,18 @@ from pathlib import Path
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Evento de inicio: crea las tablas en la base de datos."""
-    # Ejecutar migraciones Alembic (si alembic está disponible)
-    # Skip if already run by docker-entrypoint.py
+    # Skip migrations if already run by docker-entrypoint.py
     if os.getenv("ALEMBIC_RUN") != "1":
         try:
-            # Ejecutar en el directorio del proyecto para que alembic encuentre alembic.ini
             cwd = Path(__file__).parent
             result = subprocess.run(["alembic", "upgrade", "head"], cwd=cwd, capture_output=True, text=True)
             if result.returncode == 0:
-                print("✅ Migraciones Alembic aplicadas correctamente")
-            else:
-                # Mostrar advertencia y continuar (creación de tablas fallback más abajo)
-                print(f"⚠️ Advertencia migraciones: {result.stderr}")
-        except FileNotFoundError:
-            print("⚠️ Alembic no encontrado en el entorno, saltando migraciones automáticas")
-        except Exception as e:
-            print(f"⚠️ Error ejecutando migraciones automáticas: {e}")
+                print("✅ Migraciones aplicadas")
+        except Exception:
+            pass
 
-    # Crear tablas si aún es necesario (fallback)
     create_db_and_tables()
-    print("🚀 Backend listo con migraciones aplicadas")  # Cambio menor para forzar redeploy
+    print("🚀 Backend listo")
     yield
 
 
@@ -78,16 +70,14 @@ def read_root():
 @app.get("/health")
 def health_check():
     """Health check endpoint para Railway."""
-    # Check DB connectivity quickly
     from database.connection.SQLConection import engine as db_engine
     try:
         with db_engine.connect() as conn:
             conn.execute("SELECT 1")
         return {"status": "healthy"}
-    except Exception as e:
-        # Return 503 so Railway healthcheck knows when DB is not available
+    except Exception:
         from fastapi import Response
-        return Response(content='{"status":"unhealthy","detail":"DB unreachable"}', status_code=503, media_type="application/json")
+        return Response(content='{"status":"unhealthy"}', status_code=503, media_type="application/json")
 
 
 

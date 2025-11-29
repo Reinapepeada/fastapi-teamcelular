@@ -102,8 +102,7 @@ def create_product_variant(variant: ProductVariantCreateList, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # No exponer detalles internos en producción
-        raise HTTPException(status_code=500, detail="Error interno del servidor al crear variantes")
+        raise HTTPException(status_code=500, detail=f"Error al crear variantes: {str(e)}")
 
 
 def upsert_product_variant(variant: ProductVariantCreateList, session: Session):
@@ -113,7 +112,7 @@ def upsert_product_variant(variant: ProductVariantCreateList, session: Session):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Error en upsert de variantes")
+        raise HTTPException(status_code=500, detail=f"Error en upsert de variantes: {str(e)}")
 
 
 def get_product_variants_by_product_id(product_id: int, session: Session):
