@@ -68,8 +68,16 @@ El script creará:
 
 ---
 
-## 🧪 Script de Prueba
+## 🧪 Scripts de Prueba
 
+### Health Check
+Verifica que el servidor esté funcionando:
+
+```bash
+python scripts/test_health.py
+```
+
+### Importación de Prueba
 Antes de importar todo, prueba con un producto:
 
 ```bash
@@ -77,6 +85,13 @@ python scripts/test_import.py
 ```
 
 Este script crea un producto de prueba con variante e imágenes para verificar que todo funciona.
+
+### Verificar Variantes
+Revisa el estado de las variantes existentes:
+
+```bash
+python scripts/check_variants.py
+```
 
 ---
 

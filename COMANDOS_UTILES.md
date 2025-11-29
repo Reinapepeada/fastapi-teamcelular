@@ -29,19 +29,26 @@ alembic downgrade -1
 alembic history
 ```
 
-## Scripts de Importación
+## Scripts
 
-### Prueba rápida
+### Health Check
+```bash
+python scripts/test_health.py
+```
+
+### Importación
+
+#### Prueba rápida
 ```bash
 python scripts/test_import.py
 ```
 
-### Verificar estado
+#### Verificar estado
 ```bash
 python scripts/check_variants.py
 ```
 
-### Importación completa
+#### Importación completa
 ```bash
 python scripts/import_baterias.py
 ```

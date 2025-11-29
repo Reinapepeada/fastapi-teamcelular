@@ -37,8 +37,9 @@
 
 ### Scripts
 - `scripts/import_baterias.py` - Simplificado y limpiado
-- `scripts/test_import.py` - **NUEVO** - Script de prueba
+- `scripts/test_import.py` - **NUEVO** - Script de prueba de importación
 - `scripts/check_variants.py` - **NUEVO** - Verificar variantes
+- `scripts/test_health.py` - **NUEVO** - Probar health check
 
 ### Documentación
 - `scripts/README.md` - Actualizado con nuevos scripts
