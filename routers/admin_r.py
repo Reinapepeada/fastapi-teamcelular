@@ -1,7 +1,8 @@
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
 from database.connection.SQLConection import get_session
@@ -21,37 +22,17 @@ router = APIRouter()
 
 @router.post("/login", response_model=Token)
 async def login(
-    request: Request,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: Annotated[Session, Depends(get_session)]
 ):
     """
     Login de administrador.
-    Acepta username o email en el campo 'identifier'.
+    Acepta username o email en el campo 'username'.
     Retorna un token JWT para autenticación.
-    
-    Body:
-    - identifier: username o email
-    - password: contraseña
     """
-    # Accept either JSON body with {'identifier', 'password'} or
-    # form-encoded OAuth2 fields (username, password) that Swagger's OAuth UI uses.
-    identifier = None
-    password = None
-    # Check content-type
-    content_type = request.headers.get("content-type", "")
-    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
-        form = await request.form()
-        # OAuth2PasswordRequestForm sends 'username' + 'password'
-        identifier = form.get("username") or form.get("identifier")
-        password = form.get("password")
-    else:
-        body = await request.json()
-        identifier = body.get("identifier") or body.get("username")
-        password = body.get("password")
-
-    # Validate fields
-    if not identifier or not password:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="identifier/username and password are required")
+    # form_data.username puede ser username o email
+    identifier = form_data.username
+    password = form_data.password
 
     admin = authenticate_admin(session, identifier, password)
     if not admin:

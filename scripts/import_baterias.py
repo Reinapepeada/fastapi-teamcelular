@@ -27,9 +27,7 @@ IMAGES_FOLDER = Path(__file__).parent / "imagenes_baterias"
 # ============================================
 # DATOS DE BATERÍAS (costo en pesos)
 # ============================================
-BATERIAS = [
-    # (modelo, marca, costo)
-    ("12M", "CK", 23200),
+BATERIAS = [     ("12M", "CK", 23200),
     ("12M", "JC", 43500),
     ("12M", "AMPSENTRIX", 36250),
     ("12/12P", "CK", 24650),
@@ -520,6 +518,57 @@ def main():
                 
                 # Crear producto con descripción SEO
                 descripcion = generar_descripcion_seo(modelo, marca)
+     
+                # Crear producto con descripción SEO
+                descripcion = generar_descripcion_seo(modelo, marca)
+
+                if preview_mode:
+                    # Generar y mostrar payload en vez de enviarlo
+                    payload = generar_payload_producto(
+                        serial, nombre, descripcion, costo, precio,
+                        categoria_id, marca_id, branch_id, imagenes_locales
+                    )
+                    print("   🔎 PREVIEW payload:")
+                    print(json.dumps(payload, ensure_ascii=False, indent=2))
+                    continue
+          # Buscar imágenes locales
+                imagenes_paths = obtener_imagenes_modelo(modelo, marca)
+                imagenes_locales = [str(p) for p in imagenes_paths] if imagenes_paths else []
+                
+                if imagenes_paths:
+                    print(f"   📷 Encontradas {len(imagenes_paths)} imagen(es) locales")
+                
+                # Crear producto con descripción SEO
+                descripcion = generar_descripcion_seo(modelo, marca)
+     print("   🔎 PREVIEW payload:")
+                    print(json.dumps(payload, ensure_ascii=False, indent=2))
+                    continue
+
+                    marcas_cache[marca] = obtener_o_crear_marca(token, marca)
+                marca_id = marcas_cache[marca]
+                
+                # Buscar imágenes locales
+                imagenes_paths = obtener_imagenes_modelo(modelo, marca)
+                imagenes_locales = [str(p) for p in imagenes_paths] if imagenes_paths else []
+                
+                if imagenes_paths:
+                    print(f"   📷 Encontradas {len(imagenes_paths)} imagen(es) locales")
+                
+                # Crear producto con descripción SEO
+                descripcion = generar_descripcion_seo(modelo, marca)
+               
+                # Crear producto con descripción SEO
+                descripcion = generar_descripcion_seo(modelo, marca)
+
+                if preview_mode:
+                    # Generar y mostrar payload en vez de enviarlo
+                    payload = generar_payload_producto(
+                        serial, nombre, descripcion, costo, precio,
+                        categoria_id, marca_id, branch_id, imagenes_locales
+                    )
+                    print("   🔎 PREVIEW payload:")
+                    print(json.dumps(payload, ensure_ascii=False, indent=2))
+                    continue
 
                 # Verificar si el producto ya existe (búsqueda previa)
                 product_id_existente = buscar_producto_por_serial(token, serial)
