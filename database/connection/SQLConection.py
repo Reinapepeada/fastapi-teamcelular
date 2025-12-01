@@ -31,6 +31,16 @@ engine = create_engine(
 
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen."""
+    # In production with PostgreSQL we rely on Alembic migrations to create types
+    # and tables. Calling SQLModel.metadata.create_all() can attempt to create
+    # PostgreSQL enum types and raise DuplicateObject errors when types already
+    # exist. Skip create_all for Postgres by default; allow override with
+    # FORCE_CREATE_ALL=1 environment variable for development/testing.
+    force = os.getenv("FORCE_CREATE_ALL", "0")
+    if engine.url.drivername.startswith("postgresql") and force != "1":
+        print("Skipping create_all() on PostgreSQL; use Alembic migrations instead")
+        return
+
     SQLModel.metadata.create_all(engine)
 
 

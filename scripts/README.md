@@ -68,6 +68,33 @@ El script creará:
 
 ---
 
+## 🧪 Scripts de Prueba
+
+### Health Check
+Verifica que el servidor esté funcionando:
+
+```bash
+python scripts/test_health.py
+```
+
+### Importación de Prueba
+Antes de importar todo, prueba con un producto:
+
+```bash
+python scripts/test_import.py
+```
+
+Este script crea un producto de prueba con variante e imágenes para verificar que todo funciona.
+
+### Verificar Variantes
+Revisa el estado de las variantes existentes:
+
+```bash
+python scripts/check_variants.py
+```
+
+---
+
 ## ⚠️ Solución de Errores
 
 **"requests no está instalado":**
@@ -80,4 +107,8 @@ pip install requests
 - Asegúrate de tener rol EDITOR o superior
 
 **"Producto ya existe":**
-- El script omite productos duplicados automáticamente
+- El script actualiza productos existentes automáticamente
+
+**"Error creando variante":**
+- Verifica que exista al menos una sucursal (branch)
+- Revisa los logs del servidor para más detalles

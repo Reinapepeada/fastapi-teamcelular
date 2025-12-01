@@ -38,19 +38,7 @@ def table_exists(conn, table_name: str) -> bool:
 def upgrade() -> None:
     conn = op.get_bind()
     
-    # Create ENUM types if they don't exist
-    if not enum_exists(conn, 'adminrole'):
-        op.execute("CREATE TYPE adminrole AS ENUM ('SUPER_ADMIN', 'ADMIN', 'EDITOR')")
-    if not enum_exists(conn, 'warrantyunit'):
-        op.execute("CREATE TYPE warrantyunit AS ENUM ('DAYS', 'MONTHS', 'YEARS')")
-    if not enum_exists(conn, 'productstatus'):
-        op.execute("CREATE TYPE productstatus AS ENUM ('ACTIVE', 'INACTIVE', 'DISCONTINUED')")
-    if not enum_exists(conn, 'color'):
-        op.execute("CREATE TYPE color AS ENUM ('ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'NARANJA', 'VIOLETA', 'ROSADO', 'MARRON', 'GRIS', 'BLANCO', 'NEGRO', 'BORDO')")
-    if not enum_exists(conn, 'sizeunit'):
-        op.execute("CREATE TYPE sizeunit AS ENUM ('CLOTHING', 'DIMENSIONS', 'WEIGHT', 'OTHER')")
-    if not enum_exists(conn, 'unit'):
-        op.execute("CREATE TYPE unit AS ENUM ('KG', 'G', 'LB', 'CM', 'M', 'INCH', 'XS', 'S', 'L', 'XL', 'XXL')")
+    # Create ENUM types if they don't exist — handled by sa.Enum(create_type=True)
     
     # Create admin table
     if not table_exists(conn, 'admin'):
@@ -59,7 +47,7 @@ def upgrade() -> None:
             sa.Column('username', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
             sa.Column('email', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
             sa.Column('hashed_password', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-            sa.Column('role', sa.Enum('SUPER_ADMIN', 'ADMIN', 'EDITOR', name='adminrole', create_type=False), nullable=False),
+            sa.Column('role', sa.Enum('SUPER_ADMIN', 'ADMIN', 'EDITOR', name='adminrole', create_type=True), nullable=False),
             sa.Column('is_active', sa.Boolean(), nullable=False),
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.Column('updated_at', sa.DateTime(), nullable=False),
@@ -107,11 +95,11 @@ def upgrade() -> None:
             sa.Column('serial_number', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
             sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
             sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-            sa.Column('warranty_unit', sa.Enum('DAYS', 'MONTHS', 'YEARS', name='warrantyunit', create_type=False), nullable=True),
+            sa.Column('warranty_unit', sa.Enum('DAYS', 'MONTHS', 'YEARS', name='warrantyunit', create_type=True), nullable=True),
             sa.Column('warranty_time', sa.Integer(), nullable=True),
             sa.Column('cost', sa.Float(), nullable=False),
             sa.Column('retail_price', sa.Float(), nullable=False),
-            sa.Column('status', sa.Enum('ACTIVE', 'INACTIVE', 'DISCONTINUED', name='productstatus', create_type=False), nullable=False),
+            sa.Column('status', sa.Enum('ACTIVE', 'INACTIVE', 'DISCONTINUED', name='productstatus', create_type=True), nullable=False),
             sa.Column('category_id', sa.Integer(), nullable=True),
             sa.Column('brand_id', sa.Integer(), nullable=True),
             sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -149,10 +137,10 @@ def upgrade() -> None:
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('product_id', sa.Integer(), nullable=False),
             sa.Column('sku', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-            sa.Column('color', sa.Enum('ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'NARANJA', 'VIOLETA', 'ROSADO', 'MARRON', 'GRIS', 'BLANCO', 'NEGRO', 'BORDO', name='color', create_type=False), nullable=True),
+            sa.Column('color', sa.Enum('ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'NARANJA', 'VIOLETA', 'ROSADO', 'MARRON', 'GRIS', 'BLANCO', 'NEGRO', 'BORDO', name='color', create_type=True), nullable=True),
             sa.Column('size', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-            sa.Column('size_unit', sa.Enum('CLOTHING', 'DIMENSIONS', 'WEIGHT', 'OTHER', name='sizeunit', create_type=False), nullable=True),
-            sa.Column('unit', sa.Enum('KG', 'G', 'LB', 'CM', 'M', 'INCH', 'XS', 'S', 'L', 'XL', 'XXL', name='unit', create_type=False), nullable=True),
+            sa.Column('size_unit', sa.Enum('CLOTHING', 'DIMENSIONS', 'WEIGHT', 'OTHER', name='sizeunit', create_type=True), nullable=True),
+            sa.Column('unit', sa.Enum('KG', 'G', 'LB', 'CM', 'M', 'INCH', 'XS', 'S', 'L', 'XL', 'XXL', name='unit', create_type=True), nullable=True),
             sa.Column('branch_id', sa.Integer(), nullable=True),
             sa.Column('stock', sa.Integer(), nullable=False),
             sa.Column('min_stock', sa.Integer(), nullable=False),

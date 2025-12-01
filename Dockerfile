@@ -14,5 +14,7 @@ COPY . .
 
 EXPOSE 8000
 
-# Ejecutar migraciones y luego iniciar el servidor
-CMD alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Use a Python entrypoint that waits for DB, runs migrations, then starts the app.
+ENTRYPOINT ["python", "docker-entrypoint.py"]
+# Default command: start uvicorn (can be overridden in runtime)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

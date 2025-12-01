@@ -165,7 +165,6 @@ def main():
     """Función principal"""
     print_banner()
     
-    # Parsear argumentos
     dev_mode = "--prod" not in sys.argv
     skip_checks = "--skip-checks" in sys.argv
     
@@ -177,23 +176,19 @@ def main():
     print()
     
     if not skip_checks:
-        # 1. Verificar .env
         if not check_env_file():
             print(f"\n{Colors.YELLOW}Configura el archivo .env y vuelve a ejecutar{Colors.END}")
             sys.exit(1)
         
-        # 2. Verificar conexión a BD
         if not check_database_connection():
             print(f"\n{Colors.YELLOW}Soluciona los problemas de conexión y vuelve a ejecutar{Colors.END}")
             sys.exit(1)
         
-        # 3. Ejecutar migraciones o crear tablas
         if not run_migrations():
             create_tables()
     
     print()
     
-    # 4. Iniciar servidor
     try:
         start_server(dev_mode=dev_mode)
     except KeyboardInterrupt:
