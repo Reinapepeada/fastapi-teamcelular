@@ -370,19 +370,9 @@ def upsert_product_variant_db(product_variants, session):
                 session.commit()
                 session.refresh(existing_variant)
                 
-                # Reemplazar imágenes si se proporcionan
-                if variant.images is not None:
-                    # Eliminar imágenes antiguas
-                    old_images = session.exec(
-                        select(ProductImage).where(ProductImage.variant_id == existing_variant.id)
-                    ).all()
-                    for img in old_images:
-                        session.delete(img)
-                    session.commit()
-                    
-                    # Agregar nuevas imágenes
-                    if variant.images:  # Solo si la lista no está vacía
-                        persist_product_images(variant.images, existing_variant.id, session)
+                # Agregar imágenes si existen
+                if variant.images:
+                    persist_product_images(variant.images, existing_variant.id, session)
                 
                 db_variants.append(existing_variant)
             else:
