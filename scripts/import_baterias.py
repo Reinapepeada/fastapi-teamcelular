@@ -29,6 +29,17 @@ IMAGES_FOLDER = Path(__file__).parent / "imagenes_baterias"
 # ============================================
 BATERIAS = [
     # (modelo, marca, costo)
+    ("X/XS", "CK", 23000),
+    ("X/XS", "JC", 35000),
+    ("X/XS", "AMPSENTRIX", 39000),
+    ("X/XS MAX", "CK", 28450),
+    ("X/XS MAX", "JC", 45725),
+    ("11/11P", "CK", 24650),
+    ("11/11P", "JC", 45675),
+    ("11/11P", "AMPSENTRIX", 38425),
+    ("11PM", "CK", 30450),
+    ("11PM", "JC", 58725),
+    ("11PM", "AMPSENTRIX", 51475),
     ("12M", "CK", 23200),
     ("12M", "JC", 43500),
     ("12M", "AMPSENTRIX", 36250),
@@ -38,31 +49,31 @@ BATERIAS = [
     ("12PM", "CK", 30450),
     ("12PM", "JC", 58725),
     ("12PM", "AMPSENTRIX", 51475),
-    ("13M", "CK", 23925),
+    ("13M", "CK", 29925),
     ("13M", "JC", 44225),
     ("13M", "AMPSENTRIX", 36975),
-    ("13", "CK", 26825),
-    ("13", "JC", 50750),
-    ("13", "AMPSENTRIX", 43500),
-    ("13P", "CK", 29725),
+    ("13", "CK", 32825),
+    ("13", "JC", 52750),
+    ("13", "AMPSENTRIX", 46500),
+    ("13P", "CK", 35725),
     ("13P", "JC", 54375),
-    ("13P", "AMPSENTRIX", 47125),
-    ("13PM", "CK", 34075),
+    ("13P", "AMPSENTRIX", 49125),
+    ("13PM", "CK", 42075),
     ("13PM", "JC", 65975),
     ("13PM", "AMPSENTRIX", 58725),
-    ("14", "CK", 26825),
+    ("14", "CK", 32825),
     ("14", "JC", 54375),
-    ("14", "AMPSENTRIX", 47125),
+    ("14", "AMPSENTRIX", 49125),
     ("14PLUS", "AMPSENTRIX", 52200),
-    ("14P", "CK", 29725),
-    ("14P", "JC", 58725),
-    ("14P", "AMPSENTRIX", 51475),
-    ("14PM", "CK", 34800),
+    ("14P", "CK", 38725),
+    ("14P", "JC", 60725),
+    ("14P", "AMPSENTRIX", 55475),
+    ("14PM", "CK", 45800),
     ("14PM", "JC", 68150),
-    ("14PM", "AMPSENTRIX", 60900),
-    ("15", "AMPSENTRIX", 47850),
-    ("15PLUS", "AMPSENTRIX", 54375),
-    ("15P", "AMPSENTRIX", 53650),
+    ("14PM", "AMPSENTRIX", 63900),
+    ("15", "AMPSENTRIX", 49850),
+    ("15PLUS", "AMPSENTRIX", 58375),
+    ("15P", "AMPSENTRIX", 58650),
     ("15PM", "AMPSENTRIX", 65975),
     ("SE3", "AMPSENTRIX", 30450),
 ]
@@ -278,21 +289,44 @@ def obtener_o_crear_categoria(token, nombre):
     headers = {"Authorization": f"Bearer {token}"}
     
     # Buscar existente
-    response = requests.get(f"{API_URL}/categories/get/all")
-    categorias = response.json()
-    for cat in categorias:
-        if cat["name"].lower() == nombre.lower():
-            return cat["id"]
+    try:
+        response = requests.get(f"{API_URL}/categories/get/all")
+        if response.status_code == 200:
+            categorias = response.json()
+            # DEBUG: Mostrar formato de respuesta
+            print(f"   🔍 Formato de respuesta categorías: {type(categorias)}")
+            
+            # Manejar diferentes formatos de respuesta
+            if isinstance(categorias, dict):
+                print(f"   🔍 Keys disponibles: {list(categorias.keys())}")
+                categorias = categorias.get("items", categorias.get("categories", []))
+            
+            for cat in categorias:
+                if cat.get("name", "").lower() == nombre.lower():
+                    print(f"   ✅ Categoría '{nombre}' encontrada (ID: {cat['id']})")
+                    return cat["id"]
+        else:
+            print(f"   ⚠️ Error obteniendo categorías (status {response.status_code}): {response.text[:200]}")
+    except Exception as e:
+        print(f"   ⚠️ Excepción buscando categorías: {e}")
     
     # Crear nueva
+    print(f"   ▶️ Creando categoría '{nombre}'...")
     response = requests.post(
         f"{API_URL}/categories/create",
         headers=headers,
         json={"name": nombre, "description": "Servicios de reparación de dispositivos"}
     )
     if response.status_code in [200, 201]:
-        return response.json()["id"]
-    raise Exception(f"Error creando categoría: {response.text}")
+        data = response.json()
+        print(f"   🔍 Respuesta crear categoría: {data}")
+        cat_id = data.get("id") or data.get("category", {}).get("id")
+        if cat_id:
+            print(f"   ✅ Categoría creada (ID: {cat_id})")
+            return cat_id
+        else:
+            raise Exception(f"No se pudo obtener ID de la respuesta: {data}")
+    raise Exception(f"Error creando categoría (status {response.status_code}): {response.text}")
 
 
 def obtener_o_crear_marca(token, nombre):
@@ -300,11 +334,19 @@ def obtener_o_crear_marca(token, nombre):
     headers = {"Authorization": f"Bearer {token}"}
     
     # Buscar existente
-    response = requests.get(f"{API_URL}/brands/get/all")
-    marcas = response.json()
-    for marca in marcas:
-        if marca["name"].lower() == nombre.lower():
-            return marca["id"]
+    try:
+        response = requests.get(f"{API_URL}/brands/get/all")
+        if response.status_code == 200:
+            marcas = response.json()
+            # Manejar diferentes formatos de respuesta
+            if isinstance(marcas, dict):
+                marcas = marcas.get("items", marcas.get("brands", []))
+            
+            for marca in marcas:
+                if marca.get("name", "").lower() == nombre.lower():
+                    return marca["id"]
+    except Exception as e:
+        print(f"   ⚠️ Error buscando marcas: {e}")
     
     # Crear nueva
     response = requests.post(
@@ -313,27 +355,53 @@ def obtener_o_crear_marca(token, nombre):
         json={"name": nombre}
     )
     if response.status_code in [200, 201]:
-        return response.json()["id"]
-    raise Exception(f"Error creando marca: {response.text}")
+        data = response.json()
+        return data.get("id") or data.get("brand", {}).get("id")
+    raise Exception(f"Error creando marca (status {response.status_code}): {response.text}")
 
 
 def obtener_o_crear_branch(token, nombre="Tienda Principal"):
     """Obtiene o crea una sucursal"""
     headers = {"Authorization": f"Bearer {token}"}
     
-    response = requests.get(f"{API_URL}/branches/get/all")
-    branches = response.json()
-    if branches:
-        return branches[0]["id"]
+    try:
+        response = requests.get(f"{API_URL}/branches/get/all")
+        if response.status_code == 200:
+            branches = response.json()
+            # DEBUG: Mostrar formato de respuesta
+            print(f"   🔍 Formato de respuesta branches: {type(branches)}")
+            
+            # Manejar diferentes formatos de respuesta
+            if isinstance(branches, dict):
+                print(f"   🔍 Keys disponibles: {list(branches.keys())}")
+                branches = branches.get("items", branches.get("branches", []))
+            
+            if branches and len(branches) > 0:
+                branch_id = branches[0]["id"]
+                print(f"   ✅ Branch encontrado (ID: {branch_id})")
+                return branch_id
+        else:
+            print(f"   ⚠️ Error obteniendo branches (status {response.status_code}): {response.text[:200]}")
+    except Exception as e:
+        print(f"   ⚠️ Excepción buscando branches: {e}")
     
+    # Crear nueva
+    print(f"   ▶️ Creando branch '{nombre}'...")
     response = requests.post(
         f"{API_URL}/branches/create",
         headers=headers,
         json={"name": nombre, "location": "Principal"}
     )
     if response.status_code in [200, 201]:
-        return response.json()["id"]
-    raise Exception(f"Error creando branch: {response.text}")
+        data = response.json()
+        print(f"   🔍 Respuesta crear branch: {data}")
+        branch_id = data.get("id") or data.get("branch", {}).get("id")
+        if branch_id:
+            print(f"   ✅ Branch creado (ID: {branch_id})")
+            return branch_id
+        else:
+            raise Exception(f"No se pudo obtener ID de la respuesta: {data}")
+    raise Exception(f"Error creando branch (status {response.status_code}): {response.text}")
 
 
 def buscar_producto_por_serial(token, serial):
@@ -434,20 +502,27 @@ def obtener_variantes_producto(token, product_id):
 
 
 def crear_variante(token, product_id, branch_id, imagenes_urls):
-    """Crea o actualiza una variante del producto (upsert)."""
+    """Crea o actualiza una variante del producto con sus imágenes."""
     headers = {"Authorization": f"Bearer {token}"}
 
-    payload = {
-        "variants": [{
-            "product_id": product_id,
-            "branch_id": branch_id,
-            "stock": 10,
-            "min_stock": 2,
-            "images": imagenes_urls if imagenes_urls else []
-        }]
+    # Payload SIN campos opcionales (omitir color, size, etc. cuando son None)
+    # Esto evita problemas con enums en la base de datos
+    variant_data = {
+        "product_id": product_id,
+        "branch_id": branch_id,
+        "stock": 10,
+        "min_stock": 2,
     }
+    
+    # Solo agregar imágenes si hay
+    if imagenes_urls:
+        variant_data["images"] = imagenes_urls
+    
+    payload = {"variants": [variant_data]}
 
-    # Intentar upsert
+    print(f"   ▶️ Creando/actualizando variante con {len(imagenes_urls)} imagen(es)...")
+    
+    # Usar upsert que ahora reemplaza las imágenes correctamente
     response = requests.put(
         f"{API_URL}/products/upsert/variant",
         headers=headers,
@@ -458,11 +533,52 @@ def crear_variante(token, product_id, branch_id, imagenes_urls):
         print(f"  ✅ Variante creada/actualizada con {len(imagenes_urls)} imagen(es)")
         return True
     else:
-        print(f"  ⚠️ Error creando variante: {response.text}")
-        return False
+        print(f"  ⚠️ Error en upsert (status {response.status_code}): {response.text[:300]}")
+        
+        # Intentar crear si no existe
+        print("   ▶️ Intentando crear variante...")
+        create_resp = requests.post(
+            f"{API_URL}/products/create/variant",
+            headers=headers,
+            json=payload
+        )
+        
+        if create_resp.status_code in [200, 201]:
+            print(f"  ✅ Variante creada con {len(imagenes_urls)} imagen(es)")
+            return True
+        else:
+            print(f"  ⚠️ Error creando variante: {create_resp.text[:300]}")
+            return False
 
 
+def generar_payload_producto(serial, nombre, descripcion, costo, precio, categoria_id, marca_id, branch_id, imagenes_locales):
+    """Genera el payload JSON que se enviaría al API para crear producto + variante.
 
+    Esto se usa en modo 'preview' para mostrar cómo quedarían los objetos
+    sin enviarlos a la API.
+    """
+    producto = {
+        "serial_number": serial,
+        "name": nombre,
+        "description": descripcion,
+        "cost": costo,
+        "retail_price": precio,
+        "category_id": categoria_id,
+        "brand_id": marca_id,
+        "warranty_time": 3,
+        "warranty_unit": "MONTHS",
+        "status": "ACTIVE"
+    }
+
+    variante = {
+        "branch_id": branch_id,
+        "stock": 10,
+        "min_stock": 2,
+        # En preview mostramos rutas/archivos locales en vez de URLs subidas
+        "images_local": imagenes_locales or []
+    }
+
+    return {"product": producto, "variant": variante}
 
 
 # ============================================
@@ -484,9 +600,10 @@ def main():
         print("✅ Sesión iniciada")
         
         print("\n📁 Configurando categoría y sucursal...")
-        categoria_id = obtener_o_crear_categoria(token, "Reparaciones")
-        branch_id = obtener_o_crear_branch(token)
-        print(f"✅ Categoría ID: {categoria_id}, Branch ID: {branch_id}")
+        # Usar IDs fijos (asumiendo que ya existen en la BD)
+        categoria_id = 1
+        branch_id = 1
+        print(f"✅ Usando Categoría ID: {categoria_id}, Branch ID: {branch_id}")
         
         # Cache de marcas
         marcas_cache = {}
@@ -496,6 +613,10 @@ def main():
         
         exitos = 0
         errores = 0
+
+        # Preguntar si el usuario desea previsualizar los payloads
+        preview_input = input("\n¿Deseas previsualizar los productos antes de crearlos? (s/n): ").strip().lower()
+        preview_mode = preview_input in ("s", "y", "si", "yes")
 
         for modelo, marca, costo in BATERIAS:
             nombre = generar_nombre_producto(modelo, marca)
@@ -520,6 +641,16 @@ def main():
                 
                 # Crear producto con descripción SEO
                 descripcion = generar_descripcion_seo(modelo, marca)
+
+                if preview_mode:
+                    # Generar y mostrar payload en vez de enviarlo
+                    payload = generar_payload_producto(
+                        serial, nombre, descripcion, costo, precio,
+                        categoria_id, marca_id, branch_id, imagenes_locales
+                    )
+                    print("   🔎 PREVIEW payload:")
+                    print(json.dumps(payload, ensure_ascii=False, indent=2))
+                    continue
 
                 # Verificar si el producto ya existe (búsqueda previa)
                 product_id_existente = buscar_producto_por_serial(token, serial)
