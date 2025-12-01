@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlmodel import Session, select
 
 from database.connection.SQLConection import get_session
@@ -20,8 +20,8 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=Token)
-def login(
-    login_data: AdminLogin,
+async def login(
+    request: Request,
     session: Annotated[Session, Depends(get_session)]
 ):
     """
@@ -33,7 +33,27 @@ def login(
     - identifier: username o email
     - password: contraseña
     """
-    admin = authenticate_admin(session, login_data.identifier, login_data.password)
+    # Accept either JSON body with {'identifier', 'password'} or
+    # form-encoded OAuth2 fields (username, password) that Swagger's OAuth UI uses.
+    identifier = None
+    password = None
+    # Check content-type
+    content_type = request.headers.get("content-type", "")
+    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        form = await request.form()
+        # OAuth2PasswordRequestForm sends 'username' + 'password'
+        identifier = form.get("username") or form.get("identifier")
+        password = form.get("password")
+    else:
+        body = await request.json()
+        identifier = body.get("identifier") or body.get("username")
+        password = body.get("password")
+
+    # Validate fields
+    if not identifier or not password:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="identifier/username and password are required")
+
+    admin = authenticate_admin(session, identifier, password)
     if not admin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
