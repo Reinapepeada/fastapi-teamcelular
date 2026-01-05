@@ -110,6 +110,18 @@ def main():
     if len(sys.argv) > 1:
         cmd = sys.argv[1:]
 
+    if cmd and cmd[0] == "uvicorn":
+        port = os.getenv("PORT")
+        if port:
+            if "--port" in cmd:
+                port_index = cmd.index("--port")
+                if port_index + 1 < len(cmd):
+                    cmd[port_index + 1] = port
+                else:
+                    cmd.append(port)
+            else:
+                cmd.extend(["--port", port])
+
     print("Starting server...")
     os.execvp(cmd[0], cmd)
 
