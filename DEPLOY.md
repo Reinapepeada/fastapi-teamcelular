@@ -28,6 +28,32 @@ Railway usa el endpoint `/health` para verificar que el servicio esta funcionand
 
 Para verificar la base de datos, usa el endpoint `/health/db`.
 
+## Railway Healthcheck Details
+
+### Configure the Healthcheck Path
+- Ensure your web server has an endpoint (for example `/health`) that returns HTTP 200 when the app is live and ready.
+- In Railway service settings, set the healthcheck path to that endpoint.
+- The healthcheck is only used during deployment; it is not a continuous monitor.
+
+### Configure the Healthcheck Port
+- Railway injects a `PORT` environment variable and uses it for healthchecks.
+- Your app must listen on `PORT`. If you use target ports, set `PORT` explicitly so Railway checks the right port.
+
+### Healthcheck Timeout
+- Default timeout is 300 seconds.
+- You can change it in service settings or set `RAILWAY_HEALTHCHECK_TIMEOUT_SEC`.
+
+### Services with Attached Volumes
+- Deployments with attached volumes are not run concurrently; brief downtime is expected.
+
+### Healthcheck Hostname
+- Healthcheck requests come from `healthcheck.railway.app`.
+- If you restrict allowed hosts, allow this hostname.
+
+### Continuous Healthchecks
+- Healthchecks are not used for continuous monitoring after deploy.
+- Use an external monitor (for example, Uptime Kuma) if needed.
+
 ## Proceso de Deploy
 
 1. **Push a GitHub:** Railway detecta cambios automáticamente
