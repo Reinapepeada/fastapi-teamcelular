@@ -27,25 +27,42 @@ def test_health(url):
         print(f"❌ Root endpoint: {e}")
         return False
     
+    ok = True
     try:
-        # Test health endpoint
+        # Test health endpoint (no DB dependency)
         response = requests.get(f"{url}/health", timeout=5)
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ Health check: {data}")
-            if data.get("status") == "healthy":
-                print(f"✅ Database: {data.get('database', 'unknown')}")
-                return True
-            else:
-                print(f"⚠️  Status: {data.get('status')}")
-                return False
+            print(f"OK Health check: {data}")
+            if data.get("status") != "healthy":
+                print(f"FAIL Status: {data.get('status')}")
+                ok = False
         else:
-            print(f"❌ Health check: Status {response.status_code}")
+            print(f"FAIL Health check: Status {response.status_code}")
             print(f"   Response: {response.text}")
-            return False
+            ok = False
     except Exception as e:
-        print(f"❌ Health check: {e}")
-        return False
+        print(f"ERR Health check: {e}")
+        ok = False
+
+    try:
+        # Test database health endpoint
+        response = requests.get(f"{url}/health/db", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"OK DB health: {data}")
+            if data.get("status") != "healthy":
+                print(f"FAIL DB status: {data.get('status')}")
+                ok = False
+        else:
+            print(f"FAIL DB health: Status {response.status_code}")
+            print(f"   Response: {response.text}")
+            ok = False
+    except Exception as e:
+        print(f"ERR DB health: {e}")
+        ok = False
+
+    return ok
 
 def main():
     print("=" * 60)

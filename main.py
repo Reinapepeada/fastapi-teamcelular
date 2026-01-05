@@ -69,7 +69,13 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint para Railway."""
+    """Health check endpoint para Railway (no depende de DB)."""
+    return {"status": "healthy"}
+
+
+@app.get("/health/db")
+def health_db_check():
+    """Health check de base de datos."""
     from database.connection.SQLConection import engine as db_engine
     from sqlalchemy import text
     
@@ -77,14 +83,13 @@ def health_check():
         with db_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
-    except Exception as e:
+    except Exception:
         from fastapi import Response
         return Response(
             content='{"status":"unhealthy","database":"disconnected"}',
             status_code=503,
             media_type="application/json"
         )
-
 
 
 

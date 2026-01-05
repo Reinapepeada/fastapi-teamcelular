@@ -21,10 +21,12 @@ Railway automáticamente provee `DATABASE_URL` si tienes PostgreSQL conectado.
 
 ## Health Check
 
-Railway usa el endpoint `/health` para verificar que el servicio esté funcionando:
+Railway usa el endpoint `/health` para verificar que el servicio esta funcionando (sin depender de DB):
 - **Path:** `/health`
 - **Timeout:** 100 segundos
 - **Política de reinicio:** ON_FAILURE (máximo 3 reintentos)
+
+Para verificar la base de datos, usa el endpoint `/health/db`.
 
 ## Proceso de Deploy
 
@@ -40,6 +42,7 @@ Después del deploy, verifica:
 ```bash
 # Health check
 curl https://tu-app.railway.app/health
+curl https://tu-app.railway.app/health/db
 
 # API docs
 curl https://tu-app.railway.app/docs

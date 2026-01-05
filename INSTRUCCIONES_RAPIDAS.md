@@ -12,7 +12,7 @@ Selecciona la opción que necesites:
 - `2` - Probar local
 - `3` - Probar ambos
 
-✅ **Resultado esperado:** `Status: healthy, Database: connected`
+OK. **Resultado esperado:** `Status: healthy` y `DB: connected` en `/health/db`
 
 ---
 
@@ -23,7 +23,7 @@ python scripts/test_import.py
 
 Ingresa tus credenciales de admin cuando te las pida.
 
-✅ **Resultado esperado:** Producto creado con variante e imágenes
+OK. **Resultado esperado:** Producto creado con variante e imagenes
 
 ---
 
@@ -32,7 +32,7 @@ Ingresa tus credenciales de admin cuando te las pida.
 python scripts/check_variants.py
 ```
 
-✅ **Resultado esperado:** Lista de productos con sus variantes e imágenes
+OK. **Resultado esperado:** Lista de productos con sus variantes e imagenes
 
 ---
 
@@ -43,7 +43,7 @@ python scripts/import_baterias.py
 
 Ingresa tus credenciales de admin cuando te las pida.
 
-✅ **Resultado esperado:** 35 productos importados con variantes e imágenes
+OK. **Resultado esperado:** 35 productos importados con variantes e imagenes
 
 ---
 
@@ -70,6 +70,7 @@ railway up
 ### 1. Health Check
 ```bash
 curl https://fastapi-teamcelular-dev.up.railway.app/health
+curl https://fastapi-teamcelular-dev.up.railway.app/health/db
 ```
 
 ### 2. Ver productos

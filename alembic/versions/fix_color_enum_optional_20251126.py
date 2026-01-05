@@ -18,6 +18,8 @@ depends_on = None
 
 def upgrade() -> None:
     conn = op.get_bind()
+    if conn.dialect.name != "postgresql":
+        return
 
     # 1) Create enum type `color` if it doesn't exist
     conn.execute(text("""
@@ -66,6 +68,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     conn = op.get_bind()
+    if conn.dialect.name != "postgresql":
+        return
 
     # Downgrade: convert enum back to varchar and drop type if desired
     udt = conn.execute(text("""

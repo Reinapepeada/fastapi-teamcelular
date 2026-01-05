@@ -59,9 +59,11 @@ python scripts/import_baterias.py
 ```bash
 # Local
 curl http://localhost:8000/health
+curl http://localhost:8000/health/db
 
 # Producción
 curl https://fastapi-teamcelular-dev.up.railway.app/health
+curl https://fastapi-teamcelular-dev.up.railway.app/health/db
 ```
 
 ### Obtener productos
