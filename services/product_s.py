@@ -5,6 +5,7 @@ from typing import List
 import uuid
 from fastapi import HTTPException, status
 from sqlmodel import select
+from sqlalchemy import or_
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import func
@@ -233,6 +234,15 @@ def fetch_products_with_filters(session, page: int, size: int, filters: dict):
     )
 
     # Aplicar filtros
+    if filters.get("search"):
+        term = f"%{filters['search']}%"
+        query = query.where(
+            or_(
+                Product.name.ilike(term),
+                Product.description.ilike(term),
+            )
+        )
+
     if filters.get("categories"):
         category_names = [str(name) for name in filters["categories"].split(",")]
         query = query.join(Product.category).where(Category.name.in_(category_names))

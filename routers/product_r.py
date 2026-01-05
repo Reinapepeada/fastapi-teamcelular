@@ -55,6 +55,7 @@ def get_filtered_paginated_products(
     brands: Optional[str] = Query(None, description="Comma-separated brand names"),
     minPrice: Optional[float] = Query(None, ge=0, description="Minimum price"),
     maxPrice: Optional[float] = Query(None, ge=0, description="Maximum price"),
+    search: Optional[str] = Query(None, description="Texto a buscar en nombre o descripción"),
     session: SessionDep = SessionDep,
 ) -> ProductOutPaginated:
     """Obtener productos paginados con filtros - PÚBLICO"""
@@ -63,6 +64,7 @@ def get_filtered_paginated_products(
         "brands": brands,
         "min_price": minPrice,
         "max_price": maxPrice,
+        "search": search,
     }
     return get_filtered_paginated_products_controller(session, page, size, filters)
 
