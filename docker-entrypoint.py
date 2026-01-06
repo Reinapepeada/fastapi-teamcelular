@@ -90,13 +90,20 @@ def main():
 
     database_url = normalize_db_url(os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL"))
 
-    if not wait_for_db(database_url):
-        print("ERROR: database unavailable; exiting")
-        sys.exit(1)
-
-    if not run_alembic():
-        print("ERROR: Alembic migration failed; exiting")
-        sys.exit(1)
+    # Si no hay base de datos configurada, permitir que la app arranque para que /health responda
+    # (útil en despliegues donde la DB aún no está provisionada o durante healthchecks iniciales).
+    if not database_url:
+        print("⚠️  DATABASE_URL/POSTGRES_URL no configurada. Iniciando API sin esperar DB.")
+        # Evitar que el lifespan vuelva a intentar migraciones
+        os.environ["ALEMBIC_RUN"] = "1"
+    else:
+        if not wait_for_db(database_url):
+            print("⚠️  La base de datos no estuvo disponible a tiempo. Iniciando API de todas formas para healthcheck.")
+            os.environ["ALEMBIC_RUN"] = "1"
+        else:
+            if not run_alembic():
+                print("⚠️  Alembic falló; iniciando API igualmente (los endpoints que dependan de DB pueden fallar).")
+                os.environ["ALEMBIC_RUN"] = "1"
 
     cmd = [
         "uvicorn",

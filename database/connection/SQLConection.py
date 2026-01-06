@@ -1,36 +1,50 @@
 
 from sqlmodel import Session, SQLModel, create_engine
 from typing import Annotated
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Obtener la URL de la base de datos desde variables de entorno
-# Railway usa DATABASE_URL o POSTGRES_URL para PostgreSQL
-DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
 
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL no está definida en las variables de entorno")
+def _get_database_url() -> str | None:
+    """Obtiene y normaliza la URL de base de datos si existe."""
+    db_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
 
-# Railway puede usar postgres:// pero SQLAlchemy necesita postgresql://
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    if not db_url:
+        return None
+
+    # Railway puede usar postgres:// pero SQLAlchemy necesita postgresql://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    return db_url
+
+
+DATABASE_URL = _get_database_url()
 
 # Configuración del engine para PostgreSQL
 # Nota: "check_same_thread" es solo para SQLite, no se usa con PostgreSQL
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,  # Cambiar a True para ver las queries SQL en desarrollo
-    pool_pre_ping=True,  # Verifica la conexión antes de usarla
-    pool_size=5,  # Tamaño del pool de conexiones
-    max_overflow=10,  # Conexiones adicionales permitidas
-)
+engine = None
+if DATABASE_URL:
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,  # Cambiar a True para ver las queries SQL en desarrollo
+        pool_pre_ping=True,  # Verifica la conexión antes de usarla
+        pool_size=5,  # Tamaño del pool de conexiones
+        max_overflow=10,  # Conexiones adicionales permitidas
+    )
+else:
+    print("⚠️  DATABASE_URL/POSTGRES_URL no configurada. La API iniciará en modo sin base de datos.")
 
 
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen."""
+    if engine is None:
+        print("⏭️  Saltando create_all(): base de datos no configurada")
+        return
+
     # In production with PostgreSQL we rely on Alembic migrations to create types
     # and tables. Calling SQLModel.metadata.create_all() can attempt to create
     # PostgreSQL enum types and raise DuplicateObject errors when types already
@@ -46,6 +60,12 @@ def create_db_and_tables():
 
 def get_session():
     """Generador de sesiones para inyección de dependencias."""
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="La base de datos no está configurada o no es accesible",
+        )
+
     with Session(engine) as session:
         yield session
 
