@@ -1,6 +1,6 @@
-"""add_indexes_and_variant_unit
+"""add_idx_variant_unit
 
-Revision ID: add_indexes_and_variant_unit_20260113
+Revision ID: add_idx_variant_unit_20260113
 Revises: fix_color_enum_optional_20251126
 Create Date: 2026-01-13
 
@@ -11,7 +11,7 @@ from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
-revision = "add_indexes_and_variant_unit_20260113"
+revision = "add_idx_variant_unit_20260113"
 down_revision = "fix_color_enum_optional_20251126"
 branch_labels = None
 depends_on = None
