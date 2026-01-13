@@ -2,20 +2,19 @@
 Script para probar el health check endpoint
 Ejecutar: python scripts/test_health.py
 """
+
 import requests
 import sys
 
 # Cambiar según tu entorno
-URLS = [
-    "https://fastapi-teamcelular-dev.up.railway.app",
-    "http://localhost:8000"
-]
+URLS = ["https://fastapi-teamcelular-dev.up.railway.app", "http://localhost:8000"]
+
 
 def test_health(url):
     """Prueba el endpoint de health check"""
     print(f"\n🔍 Probando: {url}")
     print("-" * 60)
-    
+
     try:
         # Test root endpoint
         response = requests.get(f"{url}/", timeout=5)
@@ -26,7 +25,7 @@ def test_health(url):
     except Exception as e:
         print(f"❌ Root endpoint: {e}")
         return False
-    
+
     ok = True
     try:
         # Test health endpoint (no DB dependency)
@@ -64,19 +63,20 @@ def test_health(url):
 
     return ok
 
+
 def main():
     print("=" * 60)
     print("🏥 TEST DE HEALTH CHECK")
     print("=" * 60)
-    
+
     # Preguntar qué URL probar
     print("\nSelecciona el entorno:")
     print("1. Producción (Railway)")
     print("2. Local (localhost:8000)")
     print("3. Ambos")
-    
+
     choice = input("\nOpción (1/2/3): ").strip()
-    
+
     urls_to_test = []
     if choice == "1":
         urls_to_test = [URLS[0]]
@@ -84,12 +84,12 @@ def main():
         urls_to_test = [URLS[1]]
     else:
         urls_to_test = URLS
-    
+
     results = []
     for url in urls_to_test:
         result = test_health(url)
         results.append((url, result))
-    
+
     # Resumen
     print("\n" + "=" * 60)
     print("📊 RESUMEN")
@@ -98,7 +98,7 @@ def main():
         status = "✅ OK" if result else "❌ FAIL"
         print(f"{status} - {url}")
     print("=" * 60)
-    
+
     # Exit code
     if all(r for _, r in results):
         print("\n✅ Todos los tests pasaron")
@@ -106,6 +106,7 @@ def main():
     else:
         print("\n⚠️  Algunos tests fallaron")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

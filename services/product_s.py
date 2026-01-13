@@ -1,17 +1,16 @@
 """
 Servicio de productos - Operaciones de base de datos
 """
+
 from typing import List
 import uuid
 from fastapi import HTTPException, status
-from sqlmodel import select
 from sqlalchemy import or_
-from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import func
+from sqlmodel import select
 
 from database.models.product import (
-    Branch,
     Brand,
     Category,
     Product,
@@ -28,11 +27,12 @@ from services.brand_s import ensure_brand_exists
 # VALIDACIONES
 # =============================================
 
+
 def ensure_category_exists(category_id: int, session):
     """Verifica que la categoría exista"""
     if category_id is None:
         return None
-    category = session.exec(select(Category).where(Category.id == category_id)).scalar()
+    category = session.get(Category, category_id)
     if not category:
         raise ValueError(f"Categoría con id {category_id} no existe")
     return category
@@ -40,9 +40,7 @@ def ensure_category_exists(category_id: int, session):
 
 def ensure_product_exists_serial(product_serial: str, session):
     """Verifica que el producto exista por serial"""
-    product = session.exec(
-        select(Product).where(Product.serial_number == product_serial)
-    ).scalar()
+    product = session.exec(select(Product).where(Product.serial_number == product_serial)).first()
     if not product:
         raise ValueError(f"Producto con serial {product_serial} no existe")
     return product
@@ -50,7 +48,7 @@ def ensure_product_exists_serial(product_serial: str, session):
 
 def ensure_product_exists_id(product_id: int, session):
     """Verifica que el producto exista por ID"""
-    product = session.exec(select(Product).where(Product.id == product_id)).scalar()
+    product = session.get(Product, product_id)
     if not product:
         raise ValueError(f"Producto con id {product_id} no existe")
     return product
@@ -58,17 +56,13 @@ def ensure_product_exists_id(product_id: int, session):
 
 def product_exists_serial(product_serial: str, session) -> bool:
     """Retorna True si el producto existe por serial"""
-    product = session.exec(
-        select(Product).where(Product.serial_number == product_serial)
-    ).scalar()
+    product = session.exec(select(Product).where(Product.serial_number == product_serial)).first()
     return product is not None
 
 
 def ensure_product_variant_exists(variant_id: int, session):
     """Verifica que la variante de producto exista"""
-    variant = session.exec(
-        select(ProductVariant).where(ProductVariant.id == variant_id)
-    ).scalar()
+    variant = session.get(ProductVariant, variant_id)
     if not variant:
         raise ValueError(f"Variante de producto con id {variant_id} no existe")
     return variant
@@ -78,35 +72,33 @@ def find_existing_variant(product_id, color, size, size_unit, unit, session):
     """Busca una variante existente con las mismas características.
     Maneja correctamente comparaciones con NULL en SQL.
     """
-    from sqlalchemy import and_, or_
-    
+    from sqlalchemy import and_
+
     # Construir condiciones dinámicamente para manejar NULL correctamente
     conditions = [ProductVariant.product_id == product_id]
-    
+
     # Para cada campo opcional, usar IS NULL si es None, o == si tiene valor
     if color is None:
         conditions.append(ProductVariant.color.is_(None))
     else:
         conditions.append(ProductVariant.color == color)
-    
+
     if size is None:
         conditions.append(ProductVariant.size.is_(None))
     else:
         conditions.append(ProductVariant.size == size)
-    
+
     if size_unit is None:
         conditions.append(ProductVariant.size_unit.is_(None))
     else:
         conditions.append(ProductVariant.size_unit == size_unit)
-    
+
     if unit is None:
         conditions.append(ProductVariant.unit.is_(None))
     else:
         conditions.append(ProductVariant.unit == unit)
-    
-    variant = session.exec(
-        select(ProductVariant).where(and_(*conditions))
-    ).first()
+
+    variant = session.exec(select(ProductVariant).where(and_(*conditions))).first()
     return variant
 
 
@@ -114,13 +106,16 @@ def ensure_unique_constraints_product_variant(product_id, color, size, size_unit
     """Verifica unicidad de variante"""
     variant = find_existing_variant(product_id, color, size, size_unit, unit, session)
     if variant:
-        raise ValueError("Ya existe una variante con las mismas características de color, tamaño y unidad.")
+        raise ValueError(
+            "Ya existe una variante con las mismas características de color, tamaño y unidad."
+        )
     return variant
 
 
 # =============================================
 # GENERADORES
 # =============================================
+
 
 def generate_sku(product_name: str, category_id: int, brand_id: int) -> str:
     """Genera un SKU único para la variante"""
@@ -134,6 +129,7 @@ def generate_sku(product_name: str, category_id: int, brand_id: int) -> str:
 # =============================================
 # CRUD PRODUCTOS
 # =============================================
+
 
 def create_product_db(product, session):
     """Crea un nuevo producto"""
@@ -173,16 +169,18 @@ def create_product_db(product, session):
         raise
     except Exception as e:
         session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al crear producto: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al crear producto: {str(e)}")
 
 
 def get_products_all_db(session):
     """Obtiene todos los productos"""
     try:
-        products = session.exec(select(Product)).scalars().all()
+        stmt = select(Product).options(
+            selectinload(Product.category),
+            selectinload(Product.brand),
+            selectinload(Product.variants).selectinload(ProductVariant.images),
+        )
+        products = session.exec(stmt).all()
         return products
     except Exception as e:
         session.rollback()
@@ -192,7 +190,18 @@ def get_products_all_db(session):
 def get_product_by_id_db(session, product_id: int):
     """Obtiene un producto por ID"""
     try:
-        db_product = ensure_product_exists_id(product_id, session)
+        stmt = (
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                selectinload(Product.category),
+                selectinload(Product.brand),
+                selectinload(Product.variants).selectinload(ProductVariant.images),
+            )
+        )
+        db_product = session.exec(stmt).first()
+        if not db_product:
+            raise ValueError(f"Producto con id {product_id} no existe")
         return db_product
     except Exception as e:
         session.rollback()
@@ -230,7 +239,7 @@ def fetch_products_with_filters(session, page: int, size: int, filters: dict):
     query = select(Product).options(
         selectinload(Product.category),
         selectinload(Product.brand),
-        selectinload(Product.variants)
+        selectinload(Product.variants).selectinload(ProductVariant.images),
     )
 
     # Aplicar filtros
@@ -244,26 +253,34 @@ def fetch_products_with_filters(session, page: int, size: int, filters: dict):
         )
 
     if filters.get("categories"):
-        category_names = [str(name) for name in filters["categories"].split(",")]
-        query = query.join(Product.category).where(Category.name.in_(category_names))
+        category_names = [
+            name.strip() for name in str(filters["categories"]).split(",") if name.strip()
+        ]
+        if category_names:
+            query = query.join(Product.category).where(Category.name.in_(category_names))
 
     if filters.get("brands"):
-        brand_names = [str(name) for name in filters["brands"].split(",")]
-        query = query.join(Product.brand).where(Brand.name.in_(brand_names))
+        brand_names = [name.strip() for name in str(filters["brands"]).split(",") if name.strip()]
+        if brand_names:
+            query = query.join(Product.brand).where(Brand.name.in_(brand_names))
 
-    if filters.get("min_price") is not None or filters.get("max_price") is not None:
-        min_price = filters.get("min_price", 0)
-        max_price = filters.get("max_price", float('inf'))
-        query = query.where(Product.retail_price.between(min_price, max_price))
+    min_price = filters.get("min_price")
+    if min_price is not None:
+        query = query.where(Product.retail_price >= min_price)
+
+    max_price = filters.get("max_price")
+    if max_price is not None:
+        query = query.where(Product.retail_price <= max_price)
+
+    # Orden estable para paginación
+    query = query.order_by(Product.id)
 
     # Contar total
-    total_query = select(func.count()).select_from(query.subquery())
+    total_query = select(func.count()).select_from(query.order_by(None).subquery())
     total = session.execute(total_query).scalar()
 
     # Obtener productos paginados
-    result = session.execute(
-        query.offset((page - 1) * size).limit(size)
-    )
+    result = session.execute(query.offset((page - 1) * size).limit(size))
     products = result.scalars().all()
 
     return products, total
@@ -286,16 +303,26 @@ def get_max_min_price_db(session):
 # CRUD VARIANTES
 # =============================================
 
+
 def create_product_variant_db(product_variants, session):
     """Crea variantes para un producto existente (falla si ya existe)"""
     try:
-        db_variants = []
+        db_variants: list[ProductVariant] = []
+        products_cache: dict[int, Product] = {}
+        validated_branch_ids: set[int] = set()
+        variants_with_images: list[tuple[ProductVariant, list[str]]] = []
+
         for variant in product_variants.variants:
-            # Validar existencia de producto
-            db_product = ensure_product_exists_id(variant.product_id, session)
-            
-            # Validar sucursal (es obligatoria)
-            ensure_branch_exists(variant.branch_id, session)
+            # Validar existencia de producto (cache por request)
+            db_product = products_cache.get(variant.product_id)
+            if db_product is None:
+                db_product = ensure_product_exists_id(variant.product_id, session)
+                products_cache[variant.product_id] = db_product
+
+            # Validar sucursal (cache por request)
+            if variant.branch_id not in validated_branch_ids:
+                ensure_branch_exists(variant.branch_id, session)
+                validated_branch_ids.add(variant.branch_id)
 
             # Validar que NO exista (solo crear, no actualizar)
             ensure_unique_constraints_product_variant(
@@ -327,16 +354,33 @@ def create_product_variant_db(product_variants, session):
                 min_stock=variant.min_stock,
             )
             session.add(db_variant)
-            session.commit()
-            session.refresh(db_variant)
-
-            # Agregar imágenes si existen
-            if variant.images:
-                persist_product_images(variant.images, db_variant.id, session)
-            
             db_variants.append(db_variant)
 
-        return db_variants
+            if variant.images:
+                variants_with_images.append((db_variant, variant.images))
+
+        # Flush para generar IDs antes de persistir imágenes
+        session.flush()
+        for db_variant, images in variants_with_images:
+            if db_variant.id is None:
+                raise ValueError("No se pudo generar ID de variante para guardar imágenes")
+            persist_product_images(images, db_variant.id, session)
+
+        session.commit()
+
+        if not db_variants:
+            return []
+
+        # Evitar N+1 en respuesta: precargar imágenes en 2 queries (variants + images)
+        variant_ids = [v.id for v in db_variants if v.id is not None]
+        stmt = (
+            select(ProductVariant)
+            .where(ProductVariant.id.in_(variant_ids))
+            .options(selectinload(ProductVariant.images))
+        )
+        loaded_variants = session.exec(stmt).all()
+        loaded_by_id = {v.id: v for v in loaded_variants if v.id is not None}
+        return [loaded_by_id[v.id] for v in db_variants if v.id in loaded_by_id]
 
     except ValueError as e:
         session.rollback()
@@ -346,7 +390,9 @@ def create_product_variant_db(product_variants, session):
         # Incluir mensaje de error original para depuración (mostrar en respuesta HTTP)
         error_msg = str(e)
         if "ForeignKeyViolation" in error_msg or "foreign key" in error_msg.lower():
-            raise ValueError("Error de referencia: Verifica que el producto, sucursal y otros IDs existan")
+            raise ValueError(
+                "Error de referencia: Verifica que el producto, sucursal y otros IDs existan"
+            )
         # Agregar el mensaje original para ayudar a diagnosticar el problema
         raise ValueError(f"Error al crear variantes de producto: {error_msg}")
 
@@ -354,13 +400,22 @@ def create_product_variant_db(product_variants, session):
 def upsert_product_variant_db(product_variants, session):
     """Crea o actualiza variantes (upsert) - Si existe, actualiza; si no, crea"""
     try:
-        db_variants = []
+        db_variants: list[ProductVariant] = []
+        products_cache: dict[int, Product] = {}
+        validated_branch_ids: set[int] = set()
+        variants_with_images: list[tuple[ProductVariant, list[str]]] = []
+
         for variant in product_variants.variants:
-            # Validar existencia de producto
-            db_product = ensure_product_exists_id(variant.product_id, session)
-            
-            # Validar sucursal (es obligatoria)
-            ensure_branch_exists(variant.branch_id, session)
+            # Validar existencia de producto (cache por request)
+            db_product = products_cache.get(variant.product_id)
+            if db_product is None:
+                db_product = ensure_product_exists_id(variant.product_id, session)
+                products_cache[variant.product_id] = db_product
+
+            # Validar sucursal (cache por request)
+            if variant.branch_id not in validated_branch_ids:
+                ensure_branch_exists(variant.branch_id, session)
+                validated_branch_ids.add(variant.branch_id)
 
             # Buscar si ya existe una variante con las mismas características
             existing_variant = find_existing_variant(
@@ -373,20 +428,14 @@ def upsert_product_variant_db(product_variants, session):
             )
 
             if existing_variant:
-                # ACTUALIZAR variante existente
                 existing_variant.branch_id = variant.branch_id
                 existing_variant.stock = variant.stock
                 existing_variant.min_stock = variant.min_stock
-                session.commit()
-                session.refresh(existing_variant)
-                
-                # Agregar imágenes si existen
-                if variant.images:
-                    persist_product_images(variant.images, existing_variant.id, session)
-                
                 db_variants.append(existing_variant)
+
+                if variant.images:
+                    variants_with_images.append((existing_variant, variant.images))
             else:
-                # CREAR variante nueva
                 sku = generate_sku(
                     product_name=db_product.name,
                     category_id=db_product.category_id,
@@ -405,16 +454,31 @@ def upsert_product_variant_db(product_variants, session):
                     min_stock=variant.min_stock,
                 )
                 session.add(db_variant)
-                session.commit()
-                session.refresh(db_variant)
-
-                # Agregar imágenes si existen
-                if variant.images:
-                    persist_product_images(variant.images, db_variant.id, session)
-                
                 db_variants.append(db_variant)
 
-        return db_variants
+                if variant.images:
+                    variants_with_images.append((db_variant, variant.images))
+
+        session.flush()
+        for db_variant, images in variants_with_images:
+            if db_variant.id is None:
+                raise ValueError("No se pudo generar ID de variante para guardar imágenes")
+            persist_product_images(images, db_variant.id, session)
+
+        session.commit()
+
+        if not db_variants:
+            return []
+
+        variant_ids = [v.id for v in db_variants if v.id is not None]
+        stmt = (
+            select(ProductVariant)
+            .where(ProductVariant.id.in_(variant_ids))
+            .options(selectinload(ProductVariant.images))
+        )
+        loaded_variants = session.exec(stmt).all()
+        loaded_by_id = {v.id: v for v in loaded_variants if v.id is not None}
+        return [loaded_by_id[v.id] for v in db_variants if v.id in loaded_by_id]
 
     except ValueError as e:
         session.rollback()
@@ -423,7 +487,9 @@ def upsert_product_variant_db(product_variants, session):
         session.rollback()
         error_msg = str(e)
         if "ForeignKeyViolation" in error_msg or "foreign key" in error_msg.lower():
-            raise ValueError("Error de referencia: Verifica que el producto, sucursal y otros IDs existan")
+            raise ValueError(
+                "Error de referencia: Verifica que el producto, sucursal y otros IDs existan"
+            )
         # Incluir mensaje de error original temporalmente para depuración
         raise ValueError(f"Error en upsert de variantes de producto: {error_msg}")
 
@@ -431,9 +497,12 @@ def upsert_product_variant_db(product_variants, session):
 def get_product_variants_by_product_id_db(product_id: int, session):
     """Obtiene variantes por ID de producto"""
     try:
-        db_variants = session.exec(
-            select(ProductVariant).where(ProductVariant.product_id == product_id)
-        ).all()
+        stmt = (
+            select(ProductVariant)
+            .where(ProductVariant.product_id == product_id)
+            .options(selectinload(ProductVariant.images))
+        )
+        db_variants = session.exec(stmt).all()
         return db_variants
     except Exception as e:
         session.rollback()
@@ -444,23 +513,23 @@ def update_product_variant_db(variant_id: int, variant: ProductVariantUpdate, se
     """Actualiza una variante"""
     try:
         db_variant = ensure_product_variant_exists(variant_id, session)
-        
+
         # Actualizar campos excepto imágenes
         for key, value in variant.model_dump(exclude_unset=True).items():
             if key != "images":
                 setattr(db_variant, key, value)
-        
+
         # Manejar imágenes si se proporcionan
         if variant.images is not None:
             # Eliminar imágenes existentes
             for img in db_variant.images:
                 session.delete(img)
             session.flush()
-            
+
             # Agregar nuevas imágenes
             if variant.images:
                 persist_product_images(variant.images, variant_id, session)
-        
+
         session.commit()
         session.refresh(db_variant)
         return db_variant
@@ -485,18 +554,13 @@ def delete_product_variant_db(variant_id: int, session):
 # IMÁGENES Y STOCK
 # =============================================
 
+
 def persist_product_images(images: List[str], variant_id: int, session):
     """Guarda imágenes de una variante"""
-    try:
-        ensure_product_variant_exists(variant_id, session)
-        # Filtrar URLs vacías o None
-        valid_images = [url for url in images if url and url.strip()]
-        for url_img in valid_images:
-            session.add(ProductImage(image_url=str(url_img), variant_id=variant_id))
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
+    # Filtrar URLs vacías o None
+    valid_images = [url for url in images if url and url.strip()]
+    for url_img in valid_images:
+        session.add(ProductImage(image_url=str(url_img), variant_id=variant_id))
 
 
 def add_stock_product_variant(variant_id: int, quantity: int, session):

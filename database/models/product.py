@@ -10,8 +10,10 @@ from enum import Enum
 # MODELOS DE BASE DE DATOS (SQLModel)
 # =============================================
 
+
 class Branch(SQLModel, table=True):
     """Sucursales donde se almacenan los productos"""
+
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, nullable=False)
     location: str | None = None
@@ -22,6 +24,7 @@ class Branch(SQLModel, table=True):
 
 class Category(SQLModel, table=True):
     """Categorías de productos"""
+
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True, nullable=False)
     description: str | None = None
@@ -33,6 +36,7 @@ class Category(SQLModel, table=True):
 
 class Brand(SQLModel, table=True):
     """Marcas de productos"""
+
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True, nullable=False)
     created_at: datetime = Field(default_factory=datetime.now)
@@ -44,6 +48,7 @@ class Brand(SQLModel, table=True):
 # ENUMS
 # =============================================
 
+
 class ProductStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
@@ -51,9 +56,9 @@ class ProductStatus(str, Enum):
 
 
 class SizeUnit(str, Enum):
-    CLOTHING = "CLOTHING"      # Tallas de ropa (S, M, L)
+    CLOTHING = "CLOTHING"  # Tallas de ropa (S, M, L)
     DIMENSIONS = "DIMENSIONS"  # Dimensiones (cm, m)
-    WEIGHT = "WEIGHT"          # Peso (kg, g)
+    WEIGHT = "WEIGHT"  # Peso (kg, g)
     OTHER = "OTHER"
 
 
@@ -99,14 +104,18 @@ class Color(str, Enum):
 # MODELOS PRINCIPALES
 # =============================================
 
+
 class Product(SQLModel, table=True):
     """Producto principal"""
+
     __table_args__ = (
-        UniqueConstraint("name", "category_id", "brand_id", name="unique_product_per_category_brand"),
+        UniqueConstraint(
+            "name", "category_id", "brand_id", name="unique_product_per_category_brand"
+        ),
         CheckConstraint("cost >= 0", name="check_cost_positive"),
         CheckConstraint("retail_price >= 0", name="check_retail_price_positive"),
     )
-    
+
     id: int | None = Field(default=None, primary_key=True)
     serial_number: str = Field(unique=True, nullable=False, index=True)
     name: str = Field(index=True, nullable=False)
@@ -116,10 +125,12 @@ class Product(SQLModel, table=True):
     cost: float = Field(nullable=False)
     retail_price: float = Field(nullable=False)
     status: ProductStatus = Eenum(ProductStatus, default=ProductStatus.ACTIVE, nullable=False)
-    category_id: int | None = Field(default=None, foreign_key="category.id")
-    brand_id: int | None = Field(default=None, foreign_key="brand.id")
+    category_id: int | None = Field(default=None, foreign_key="category.id", index=True)
+    brand_id: int | None = Field(default=None, foreign_key="brand.id", index=True)
     created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now})
+    updated_at: datetime = Field(
+        default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now}
+    )
 
     # Relaciones
     brand: Optional["Brand"] = Relationship(back_populates="products")
@@ -130,23 +141,28 @@ class Product(SQLModel, table=True):
 
 class ProductVariant(SQLModel, table=True):
     """Variantes de producto (color, talla, etc.)"""
+
     __table_args__ = (
-        UniqueConstraint("product_id", "color", "size", "size_unit", name="unique_variant_constraint"),
+        UniqueConstraint(
+            "product_id", "color", "size", "size_unit", "unit", name="unique_variant_constraint"
+        ),
         CheckConstraint("stock >= 0", name="check_stock_positive"),
     )
-    
+
     id: int | None = Field(default=None, primary_key=True)
-    product_id: int = Field(foreign_key="product.id", nullable=False)
+    product_id: int = Field(foreign_key="product.id", nullable=False, index=True)
     sku: str = Field(index=True, nullable=False, unique=True)
     color: Color | None = Eenum(Color, nullable=True, default=None, index=True)
     size: str | None = Field(nullable=True, default=None, index=True)
     size_unit: SizeUnit | None = Eenum(SizeUnit, nullable=True, default=None)
     unit: Unit | None = Eenum(Unit, nullable=True)
-    branch_id: int | None = Field(default=None, foreign_key="branch.id")
+    branch_id: int | None = Field(default=None, foreign_key="branch.id", index=True)
     stock: int = Field(default=0, index=True)
     min_stock: int = Field(default=5, index=True)
     created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now})
+    updated_at: datetime = Field(
+        default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now}
+    )
 
     # Relaciones
     product: Optional["Product"] = Relationship(back_populates="variants")
@@ -156,8 +172,9 @@ class ProductVariant(SQLModel, table=True):
 
 class ProductImage(SQLModel, table=True):
     """Imágenes de variantes de producto"""
+
     id: int | None = Field(default=None, primary_key=True)
-    variant_id: int = Field(foreign_key="productvariant.id", nullable=False)
+    variant_id: int = Field(foreign_key="productvariant.id", nullable=False, index=True)
     image_url: str = Field(nullable=False)
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -166,6 +183,7 @@ class ProductImage(SQLModel, table=True):
 
 class Discount(SQLModel, table=True):
     """Descuentos para productos o categorías"""
+
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
     discount_type: str = Field(nullable=False)  # 'percentage' o 'fixed'
@@ -184,6 +202,7 @@ class Discount(SQLModel, table=True):
 # SCHEMAS PYDANTIC - PRODUCTOS
 # =============================================
 
+
 class ProductVariantCreate(BaseModel):
     product_id: int
     branch_id: int  # OBLIGATORIO
@@ -198,43 +217,43 @@ class ProductVariantCreate(BaseModel):
     class Config:
         from_attributes = True
 
-    @field_validator('color', mode='before')
+    @field_validator("color", mode="before")
     @classmethod
     def normalize_color(cls, v):
         """Convierte valores vacíos a None"""
-        if v == '' or v is None:
+        if v == "" or v is None:
             return None
         return v
 
-    @field_validator('size', mode='before')
+    @field_validator("size", mode="before")
     @classmethod
     def normalize_size(cls, v):
         """Convierte valores vacíos a None"""
-        if v == '' or v is None:
+        if v == "" or v is None:
             return None
         return v
 
-    @field_validator('size_unit', mode='before')
+    @field_validator("size_unit", mode="before")
     @classmethod
     def normalize_size_unit(cls, v):
         """Convierte valores vacíos a None"""
-        if v == '' or v is None:
+        if v == "" or v is None:
             return None
         return v
 
-    @field_validator('unit', mode='before')
+    @field_validator("unit", mode="before")
     @classmethod
     def normalize_unit(cls, v):
         """Convierte valores vacíos a None"""
-        if v == '' or v is None:
+        if v == "" or v is None:
             return None
         return v
 
-    @field_validator('images', mode='before')
+    @field_validator("images", mode="before")
     @classmethod
     def normalize_images(cls, v):
         """Convierte lista vacía a None y filtra URLs vacías"""
-        if v is None or v == '' or v == []:
+        if v is None or v == "" or v == []:
             return None
         if isinstance(v, list):
             # Filtrar URLs vacías
@@ -262,27 +281,27 @@ class ProductVariantUpdate(BaseModel):
     class Config:
         from_attributes = True
 
-    @field_validator('branch_id', mode='before')
+    @field_validator("branch_id", mode="before")
     @classmethod
     def normalize_branch_id(cls, v):
         """Convierte 0 a None"""
-        if v == 0 or v == '0' or v == '':
+        if v == 0 or v == "0" or v == "":
             return None
         return v
 
-    @field_validator('color', 'size', 'size_unit', 'unit', mode='before')
+    @field_validator("color", "size", "size_unit", "unit", mode="before")
     @classmethod
     def normalize_empty_strings(cls, v):
         """Convierte strings vacíos a None"""
-        if v == '':
+        if v == "":
             return None
         return v
 
-    @field_validator('images', mode='before')
+    @field_validator("images", mode="before")
     @classmethod
     def normalize_images(cls, v):
         """Filtra URLs vacías"""
-        if v is None or v == '' or v == []:
+        if v is None or v == "" or v == []:
             return None
         if isinstance(v, list):
             filtered = [url for url in v if url and url.strip()]
@@ -351,6 +370,7 @@ class ProductUpdate(BaseModel):
 # SCHEMAS PYDANTIC - CATEGORÍAS
 # =============================================
 
+
 class CategoryCreate(BaseModel):
     name: str
     description: str | None = None
@@ -378,6 +398,7 @@ class CategoryOut(BaseModel):
 # SCHEMAS PYDANTIC - MARCAS
 # =============================================
 
+
 class BrandCreate(BaseModel):
     name: str
 
@@ -401,6 +422,7 @@ class BrandOut(BaseModel):
 # =============================================
 # SCHEMAS PYDANTIC - SUCURSALES
 # =============================================
+
 
 class BranchCreate(BaseModel):
     name: str
@@ -429,6 +451,7 @@ class BranchOut(BaseModel):
 # SCHEMAS PYDANTIC - RESPUESTAS DE PRODUCTOS
 # =============================================
 
+
 class ProductOut(BaseModel):
     id: int
     serial_number: str
@@ -451,6 +474,7 @@ class ProductOut(BaseModel):
 
 class ProductOutSimple(BaseModel):
     """Schema simplificado para listados"""
+
     id: int
     name: str
     retail_price: float
@@ -465,6 +489,7 @@ class ProductOutSimple(BaseModel):
 
 class ProductOutPaginated(BaseModel):
     """Respuesta paginada de productos"""
+
     products: List[ProductOutSimple]
     total: int
     page: int

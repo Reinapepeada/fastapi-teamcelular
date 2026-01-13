@@ -12,6 +12,7 @@ class AdminRole(str, Enum):
 
 class Admin(SQLModel, table=True):
     """Administradores del sistema"""
+
     id: int | None = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True, nullable=False)
     email: str = Field(unique=True, index=True, nullable=False)
@@ -19,12 +20,15 @@ class Admin(SQLModel, table=True):
     role: AdminRole = Field(default=AdminRole.ADMIN)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(
+        default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now}
+    )
 
 
 # =============================================
 # SCHEMAS PYDANTIC - ADMIN
 # =============================================
+
 
 class AdminCreate(BaseModel):
     username: str
@@ -35,6 +39,7 @@ class AdminCreate(BaseModel):
 
 class AdminLogin(BaseModel):
     """Permite login con username o email"""
+
     identifier: str  # Puede ser username o email
     password: str
 

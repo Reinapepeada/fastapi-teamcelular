@@ -14,7 +14,15 @@ from alembic import context
 from sqlmodel import SQLModel
 
 # importo mis modelos - necesarios para que alembic pueda hacer las migraciones
-from database.models.product import Product, ProductImage, ProductVariant, Discount, Category, Branch, Brand
+from database.models.product import (
+    Product,
+    ProductImage,
+    ProductVariant,
+    Discount,
+    Category,
+    Branch,
+    Brand,
+)
 from database.models.admin import Admin
 
 # Obtener la URL desde la variable de entorno
@@ -88,9 +96,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

@@ -12,10 +12,9 @@ router = APIRouter()
 # ENDPOINTS PÚBLICOS
 # =============================================
 
+
 @router.get("/get/all")
-def get_brand_endp(
-    session: SessionDep = SessionDep
-) -> List[BrandOut]:
+def get_brand_endp(session: SessionDep) -> List[BrandOut]:
     """Obtener todas las marcas - PÚBLICO"""
     return get_brands(session)
 
@@ -24,32 +23,22 @@ def get_brand_endp(
 # ENDPOINTS PROTEGIDOS
 # =============================================
 
+
 @router.post("/create")
-def create_brand_endp(
-    brand: BrandCreate,
-    session: SessionDep,
-    admin: RequireEditorOrHigher
-):
+def create_brand_endp(brand: BrandCreate, session: SessionDep, admin: RequireEditorOrHigher):
     """Crear marca - REQUIERE AUTH (Editor+)"""
     return create_brand(brand, session)
 
 
 @router.put("/update")
 def update_brand_endp(
-    brand_id: int,
-    brand: BrandCreate,
-    session: SessionDep,
-    admin: RequireEditorOrHigher
+    brand_id: int, brand: BrandCreate, session: SessionDep, admin: RequireEditorOrHigher
 ):
     """Actualizar marca - REQUIERE AUTH (Editor+)"""
     return update_brand(brand_id, brand, session)
 
 
 @router.delete("/delete")
-def delete_brand_endp(
-    brand_id: int,
-    session: SessionDep,
-    admin: RequireAdminOrHigher
-):
+def delete_brand_endp(brand_id: int, session: SessionDep, admin: RequireAdminOrHigher):
     """Eliminar marca - REQUIERE AUTH (Admin+)"""
     return delete_brand(brand_id, session)

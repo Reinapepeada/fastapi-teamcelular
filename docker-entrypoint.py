@@ -4,6 +4,7 @@
 This script attempts to connect to the database, retries until available,
 runs `alembic upgrade head`, then replaces the process with the Uvicorn server.
 """
+
 import os
 import sys
 import time
@@ -45,6 +46,7 @@ def mask_db_url(db_url: Optional[str]) -> str:
 
 def wait_for_db(database_url: Optional[str]) -> bool:
     from sqlalchemy import create_engine, text
+
     if not database_url:
         print("ERROR: DATABASE_URL not set; cannot wait for DB.")
         return False
@@ -84,6 +86,7 @@ def run_alembic():
 def main():
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
     except Exception:
         pass
@@ -121,6 +124,20 @@ def main():
                     cmd.append(port)
             else:
                 cmd.extend(["--port", port])
+
+        # Default to 1 worker unless explicitly configured (low traffic friendly).
+        workers_env = os.getenv("WEB_CONCURRENCY") or os.getenv("UVICORN_WORKERS")
+        if workers_env and "--workers" not in cmd:
+            try:
+                workers = int(workers_env)
+            except ValueError:
+                workers = 1
+            if workers > 1:
+                cmd.extend(["--workers", str(workers)])
+
+        log_level = os.getenv("LOG_LEVEL")
+        if log_level and "--log-level" not in cmd:
+            cmd.extend(["--log-level", log_level.lower()])
 
     print("Starting server...")
     os.execvp(cmd[0], cmd)

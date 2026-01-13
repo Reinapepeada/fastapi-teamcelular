@@ -1,4 +1,3 @@
-
 from sqlmodel import Session, SQLModel, create_engine
 from typing import Annotated
 from fastapi import Depends
@@ -47,7 +46,11 @@ def create_db_and_tables():
 def get_session():
     """Generador de sesiones para inyección de dependencias."""
     with Session(engine) as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise
 
 
 # Tipo anotado para usar como dependencia en FastAPI
