@@ -1,6 +1,9 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 from typing import List, Optional
 from fastapi import Query
+import os
+import pandas as pd
 from database.connection.SQLConection import SessionDep
 from database.models.product import (
     ProductCreate,
@@ -154,3 +157,116 @@ def delete_product_variant_endp(
 ):
     """Eliminar variante - REQUIERE AUTH (Admin+)"""
     return delete_product_variant(variant_id, session)
+
+
+# =============================================
+# ENDPOINT DE CARGA MASIVA
+# =============================================
+
+
+@router.post("/bulk-upload", status_code=status.HTTP_201_CREATED)
+async def bulk_upload_products_endp(
+    file: UploadFile = File(..., description="Archivo Excel (.xlsx) con productos"),
+    skip_errors: bool = Query(
+        True, 
+        description="Si es True, continúa procesando aunque haya errores en algunas filas"
+    ),
+    session: SessionDep = None,
+    admin: RequireEditorOrHigher = None,
+):
+    """
+    Carga masiva de productos desde un archivo Excel - REQUIERE AUTH (Editor+)
+    
+    El archivo debe tener las siguientes columnas:
+    - serial_number (requerido): Número de serie único
+    - name (requerido): Nombre del producto
+    - cost (requerido): Costo
+    - retail_price (requerido): Precio de venta
+    - description (opcional): Descripción
+    - brand_id (opcional): ID de marca
+    - category_id (opcional): ID de categoría
+    - warranty_time (opcional): Tiempo de garantía
+    - warranty_unit (opcional): Unidad de garantía (DAYS, MONTHS, YEARS)
+    - status (opcional): Estado (ACTIVE, INACTIVE, DISCONTINUED)
+    - variant_branch_id (requerido para variante): ID de sucursal
+    - variant_color (opcional): Color
+    - variant_size (opcional): Talla/Tamaño
+    - variant_size_unit (opcional): Tipo de tamaño
+    - variant_unit (opcional): Unidad
+    - variant_stock (opcional): Stock inicial
+    - variant_min_stock (opcional): Stock mínimo
+    - image_paths (opcional): Rutas de imágenes separadas por ; (ej: C:\\imgs\\1.jpg;C:\\imgs\\2.jpg)
+    
+    Retorna un resumen con productos creados, errores y advertencias.
+    """
+    from services.bulk_upload_s import process_bulk_upload
+    
+    # Validar tipo de archivo
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo debe ser un Excel (.xlsx o .xls)"
+        )
+    
+    # Procesar archivo
+    result = await process_bulk_upload(file, session, skip_errors)
+    
+    return result.to_dict()
+
+
+@router.get("/bulk-upload/template")
+def download_bulk_upload_template():
+    """
+    Descarga el template Excel para carga masiva de productos - PÚBLICO
+    
+    Retorna un archivo Excel con:
+    - Encabezados y descripciones de todas las columnas
+    - Ejemplos de datos
+    - Hoja de referencia con valores válidos para enums
+    """
+    template_path = "template_carga_productos.xlsx"
+    
+    # Si no existe, crear el template
+    if not os.path.exists(template_path):
+        from scripts.create_template_excel import create_product_template
+        create_product_template()
+    
+    return FileResponse(
+        path=template_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="template_carga_productos.xlsx"
+    )
+
+
+@router.get("/bulk-upload/export")
+def export_existing_products(
+    session: SessionDep,
+    admin: RequireEditorOrHigher = None,
+):
+    """
+    Exporta todos los productos existentes a un archivo Excel - REQUIERE AUTH (Editor+)
+    
+    Descarga un archivo Excel con todos los productos actuales de la base de datos.
+    Este archivo tiene el mismo formato que el template y puede ser usado para:
+    - Agregar nuevos productos al final
+    - Modificar productos existentes (cambios en descripción, costo, etc.)
+    - Actualizar stock de variantes
+    
+    Al volver a subir este archivo:
+    - Productos sin cambios: se omiten
+    - Productos con cambios: se actualizan
+    - Productos nuevos: se crean
+    - Variantes sin cambios: se omiten
+    - Variantes con cambios: se actualizan
+    - Variantes nuevas: se crean
+    """
+    from services.export_products_s import export_products_to_excel
+    
+    filename = export_products_to_excel(session, "productos_exportados.xlsx")
+    
+    return FileResponse(
+        path=filename,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=f"productos_exportados_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    )
+
