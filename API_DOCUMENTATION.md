@@ -31,6 +31,10 @@ Base path: `/v1/leads/repair`
   - Returns full lead detail, status history and internal notes.
 - `GET /v1/leads/repair`
   - Paged list with filters: `status`, `dateFrom`, `dateTo`, `repairType`, `urgency`, `contactChannel`.
+- `GET /v1/leads/repair/metrics`
+  - Aggregated metrics over the full filtered universe (no sampling).
+  - Returns totals by `status`, `contactChannel`, and `date`.
+  - Conversion is computed as `convertedLeads / totalRealLeads`.
 - `PATCH /v1/leads/repair/{leadId}/status`
   - Updates status (`new`, `contacted`, `qualified`, `discarded`, `converted`) and writes audit history.
 - `POST /v1/leads/repair/whatsapp-link`

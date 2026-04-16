@@ -39,7 +39,23 @@
   - `page` (default 1)
   - `size` (default 20, max 100)
 
-4. `PATCH /v1/leads/repair/{leadId}/status`
+4. `GET /v1/leads/repair/metrics`
+- Aggregated KPIs calculated over all filtered leads (no sample)
+- Query params:
+  - `status`
+  - `dateFrom`
+  - `dateTo`
+  - `repairType`
+  - `urgency`
+  - `contactChannel`
+- Returns:
+  - `totalLeads`
+  - `totalRealLeads` (excludes `duplicated`)
+  - `convertedLeads`
+  - `conversionRate` (`convertedLeads / totalRealLeads`)
+  - `byStatus`, `byContactChannel`, `byDate`
+
+5. `PATCH /v1/leads/repair/{leadId}/status`
 - Updates operational status (`new`, `contacted`, `qualified`, `discarded`, `converted`)
 - Writes audit row into `lead_status_history`
 

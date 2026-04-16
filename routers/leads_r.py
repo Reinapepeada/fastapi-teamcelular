@@ -13,6 +13,8 @@ from database.models.lead import (
     LeadErrorResponse,
     LeadListData,
     LeadListResponse,
+    LeadMetricsData,
+    LeadMetricsResponse,
     LeadNoteCreateRequest,
     LeadNoteData,
     LeadNoteResponse,
@@ -32,6 +34,7 @@ from services.lead_s import (
     create_repair_lead,
     get_notes,
     get_repair_lead_or_404,
+    get_repair_leads_metrics,
     get_status_history,
     get_whatsapp_link,
     list_repair_leads,
@@ -187,6 +190,68 @@ def list_repair_leads_endpoint(
             detail={
                 "errorCode": "LEAD_LIST_UNEXPECTED_ERROR",
                 "message": f"Unexpected error while listing leads: {exc}",
+            },
+        ) from exc
+
+
+@router.get(
+    "/repair/metrics",
+    response_model=LeadMetricsResponse,
+    responses={400: {"model": LeadErrorResponse}},
+)
+def get_repair_leads_metrics_endpoint(
+    session: SessionDep,
+    status_filter: LeadRepairStatus | None = Query(default=None, alias="status"),
+    date_from: datetime | None = Query(default=None, alias="dateFrom"),
+    date_to: datetime | None = Query(default=None, alias="dateTo"),
+    repair_type: str | None = Query(default=None, alias="repairType"),
+    urgency: LeadUrgency | None = Query(default=None, alias="urgency"),
+    contact_channel: LeadContactChannel | None = Query(default=None, alias="contactChannel"),
+):
+    """Aggregated KPIs over all filtered leads (without sampling)."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "errorCode": "INVALID_DATE_RANGE",
+                "message": "dateFrom must be less than or equal to dateTo.",
+                "fieldErrors": [
+                    {"field": "dateFrom", "message": "Must be <= dateTo"},
+                ],
+            },
+        )
+
+    try:
+        metrics = get_repair_leads_metrics(
+            session=session,
+            status=status_filter,
+            date_from=date_from,
+            date_to=date_to,
+            repair_type=repair_type,
+            urgency=urgency.value if urgency else None,
+            contact_channel=contact_channel.value if contact_channel else None,
+        )
+
+        return {
+            "success": True,
+            "data": LeadMetricsData(
+                total_leads=metrics.total_leads,
+                total_real_leads=metrics.total_real_leads,
+                converted_leads=metrics.converted_leads,
+                conversion_rate=metrics.conversion_rate,
+                by_status=metrics.by_status,
+                by_contact_channel=metrics.by_contact_channel,
+                by_date=metrics.by_date,
+            ),
+        }
+    except LeadServiceError as err:
+        _raise_as_http(err)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "errorCode": "LEAD_METRICS_UNEXPECTED_ERROR",
+                "message": f"Unexpected error while calculating metrics: {exc}",
             },
         ) from exc
 

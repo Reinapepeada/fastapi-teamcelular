@@ -174,3 +174,60 @@ def test_add_note_to_lead(client: TestClient, sample_payload: dict):
     notes = detail.json()["data"]["notes"]
     assert len(notes) == 1
     assert notes[0]["createdBy"] == "agent-1"
+
+
+def test_metrics_endpoint_returns_exact_aggregates(client: TestClient, sample_payload: dict):
+    payload_1 = {**sample_payload, "contact": "+5491111111111", "model": "iPhone 13"}
+    payload_2 = {
+        **sample_payload,
+        "contact": "cliente2@example.com",
+        "contactChannel": "email",
+        "model": "iPhone 14",
+    }
+    payload_3 = {
+        **sample_payload,
+        "contact": "5491122222222",
+        "contactChannel": "llamada",
+        "model": "iPhone 15",
+    }
+
+    lead_1 = client.post("/v1/leads/repair", json=payload_1)
+    lead_2 = client.post("/v1/leads/repair", json=payload_2)
+    lead_3 = client.post("/v1/leads/repair", json=payload_3)
+    duplicated = client.post("/v1/leads/repair", json=payload_1)
+
+    assert lead_1.status_code == 201
+    assert lead_2.status_code == 201
+    assert lead_3.status_code == 201
+    assert duplicated.status_code == 201
+
+    lead_1_id = lead_1.json()["data"]["leadId"]
+    update_resp = client.patch(
+        f"/v1/leads/repair/{lead_1_id}/status",
+        json={"status": "converted", "changedBy": "ops-kpi"},
+    )
+    assert update_resp.status_code == 200
+
+    metrics_resp = client.get("/v1/leads/repair/metrics")
+    assert metrics_resp.status_code == 200
+    metrics = metrics_resp.json()["data"]
+
+    assert metrics["totalLeads"] == 4
+    assert metrics["totalRealLeads"] == 3
+    assert metrics["convertedLeads"] == 1
+    assert metrics["conversionRate"] == pytest.approx(1 / 3, rel=1e-6)
+
+    by_status = {item["status"]: item["total"] for item in metrics["byStatus"]}
+    assert by_status["converted"] == 1
+    assert by_status["duplicated"] == 1
+
+    filtered_metrics_resp = client.get(
+        "/v1/leads/repair/metrics",
+        params={"contactChannel": "email"},
+    )
+    assert filtered_metrics_resp.status_code == 200
+    filtered_metrics = filtered_metrics_resp.json()["data"]
+
+    assert filtered_metrics["totalLeads"] == 1
+    assert filtered_metrics["totalRealLeads"] == 1
+    assert filtered_metrics["convertedLeads"] == 0

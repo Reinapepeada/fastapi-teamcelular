@@ -70,6 +70,17 @@ class LeadStatusUpdateResult:
     changed_at: datetime
 
 
+@dataclass
+class LeadMetricsResult:
+    total_leads: int
+    total_real_leads: int
+    converted_leads: int
+    conversion_rate: float
+    by_status: list[dict[str, Any]]
+    by_contact_channel: list[dict[str, Any]]
+    by_date: list[dict[str, Any]]
+
+
 def reset_lead_runtime_state_for_tests() -> None:
     """Clear in-memory anti-spam state used by rate limiting."""
     with _RATE_LIMIT_LOCK:
@@ -394,18 +405,15 @@ def get_repair_lead_or_404(lead_id: str, session: Session) -> LeadRepair:
     return lead
 
 
-def list_repair_leads(
+def _build_filtered_leads_query(
     *,
-    session: Session,
     status: LeadRepairStatus | None,
     date_from: datetime | None,
     date_to: datetime | None,
     repair_type: str | None,
     urgency: str | None,
     contact_channel: str | None,
-    page: int,
-    size: int,
-) -> tuple[list[LeadRepair], int]:
+):
     query = select(LeadRepair)
 
     if status is not None:
@@ -421,6 +429,30 @@ def list_repair_leads(
     if contact_channel:
         query = query.where(LeadRepair.contact_channel == contact_channel)
 
+    return query
+
+
+def list_repair_leads(
+    *,
+    session: Session,
+    status: LeadRepairStatus | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+    repair_type: str | None,
+    urgency: str | None,
+    contact_channel: str | None,
+    page: int,
+    size: int,
+) -> tuple[list[LeadRepair], int]:
+    query = _build_filtered_leads_query(
+        status=status,
+        date_from=date_from,
+        date_to=date_to,
+        repair_type=repair_type,
+        urgency=urgency,
+        contact_channel=contact_channel,
+    )
+
     total_stmt = select(func.count()).select_from(query.order_by(None).subquery())
     total = session.execute(total_stmt).scalar_one()
 
@@ -428,6 +460,96 @@ def list_repair_leads(
         query.order_by(desc(LeadRepair.created_at)).offset((page - 1) * size).limit(size)
     ).all()
     return rows, int(total)
+
+
+def get_repair_leads_metrics(
+    *,
+    session: Session,
+    status: LeadRepairStatus | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+    repair_type: str | None,
+    urgency: str | None,
+    contact_channel: str | None,
+) -> LeadMetricsResult:
+    filtered_query = _build_filtered_leads_query(
+        status=status,
+        date_from=date_from,
+        date_to=date_to,
+        repair_type=repair_type,
+        urgency=urgency,
+        contact_channel=contact_channel,
+    )
+    filtered_subquery = filtered_query.subquery()
+
+    total_leads = int(session.execute(select(func.count()).select_from(filtered_subquery)).scalar_one())
+
+    total_real_leads = int(
+        session.execute(
+            select(func.count())
+            .select_from(filtered_subquery)
+            .where(filtered_subquery.c.status != LeadRepairStatus.DUPLICATED.value)
+        ).scalar_one()
+    )
+
+    converted_leads = int(
+        session.execute(
+            select(func.count())
+            .select_from(filtered_subquery)
+            .where(filtered_subquery.c.status == LeadRepairStatus.CONVERTED.value)
+        ).scalar_one()
+    )
+
+    conversion_rate = 0.0
+    if total_real_leads > 0:
+        conversion_rate = round(converted_leads / total_real_leads, 6)
+
+    status_rows = session.execute(
+        select(filtered_subquery.c.status, func.count().label("total"))
+        .group_by(filtered_subquery.c.status)
+        .order_by(func.count().desc())
+    ).all()
+
+    channel_rows = session.execute(
+        select(filtered_subquery.c.contact_channel, func.count().label("total"))
+        .group_by(filtered_subquery.c.contact_channel)
+        .order_by(func.count().desc())
+    ).all()
+
+    date_bucket = func.date(filtered_subquery.c.created_at)
+    date_rows = session.execute(
+        select(date_bucket.label("bucket_date"), func.count().label("total"))
+        .group_by(date_bucket)
+        .order_by(date_bucket.asc())
+    ).all()
+
+    return LeadMetricsResult(
+        total_leads=total_leads,
+        total_real_leads=total_real_leads,
+        converted_leads=converted_leads,
+        conversion_rate=conversion_rate,
+        by_status=[
+            {
+                "status": str(row[0]),
+                "total": int(row[1]),
+            }
+            for row in status_rows
+        ],
+        by_contact_channel=[
+            {
+                "contact_channel": str(row[0]),
+                "total": int(row[1]),
+            }
+            for row in channel_rows
+        ],
+        by_date=[
+            {
+                "date": str(row[0]),
+                "total": int(row[1]),
+            }
+            for row in date_rows
+        ],
+    )
 
 
 def get_status_history(lead_id: str, session: Session) -> list[LeadStatusHistory]:

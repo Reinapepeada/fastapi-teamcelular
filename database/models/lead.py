@@ -360,6 +360,67 @@ class LeadListResponse(BaseModel):
     data: LeadListData
 
 
+class LeadMetricsStatusItem(BaseModel):
+    status: str
+    total: int
+
+
+class LeadMetricsChannelItem(BaseModel):
+    contact_channel: str = PydField(alias="contactChannel")
+    total: int
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class LeadMetricsDateItem(BaseModel):
+    date: str
+    total: int
+
+
+class LeadMetricsData(BaseModel):
+    total_leads: int = PydField(alias="totalLeads")
+    total_real_leads: int = PydField(alias="totalRealLeads")
+    converted_leads: int = PydField(alias="convertedLeads")
+    conversion_rate: float = PydField(alias="conversionRate")
+    by_status: list[LeadMetricsStatusItem] = PydField(alias="byStatus")
+    by_contact_channel: list[LeadMetricsChannelItem] = PydField(alias="byContactChannel")
+    by_date: list[LeadMetricsDateItem] = PydField(alias="byDate")
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "totalLeads": 1240,
+                "totalRealLeads": 1180,
+                "convertedLeads": 302,
+                "conversionRate": 0.255932,
+                "byStatus": [
+                    {"status": "new", "total": 500},
+                    {"status": "contacted", "total": 240},
+                    {"status": "qualified", "total": 138},
+                    {"status": "converted", "total": 302},
+                    {"status": "discarded", "total": 60},
+                ],
+                "byContactChannel": [
+                    {"contactChannel": "whatsapp", "total": 900},
+                    {"contactChannel": "llamada", "total": 220},
+                    {"contactChannel": "email", "total": 120},
+                ],
+                "byDate": [
+                    {"date": "2026-04-14", "total": 410},
+                    {"date": "2026-04-15", "total": 389},
+                    {"date": "2026-04-16", "total": 441},
+                ],
+            }
+        },
+    )
+
+
+class LeadMetricsResponse(BaseModel):
+    success: Literal[True] = True
+    data: LeadMetricsData
+
+
 class LeadStatusUpdateData(BaseModel):
     lead_id: str = PydField(alias="leadId")
     old_status: str = PydField(alias="oldStatus")
