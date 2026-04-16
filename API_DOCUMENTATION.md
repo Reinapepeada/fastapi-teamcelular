@@ -18,6 +18,54 @@ authentication: "JWT Bearer Token (for write operations)"
 
 ## 🔐 AUTHENTICATION SYSTEM
 
+## 🛠️ REPAIR LEADS (WIZARD)
+
+Base path: `/v1/leads/repair`
+
+### Endpoints
+
+- `POST /v1/leads/repair`
+  - Create lead, apply validation/sanitization, dedupe, rate limit and idempotency.
+  - Returns `leadId`, initial `status` and `whatsappUrl`.
+- `GET /v1/leads/repair/{leadId}`
+  - Returns full lead detail, status history and internal notes.
+- `GET /v1/leads/repair`
+  - Paged list with filters: `status`, `dateFrom`, `dateTo`, `repairType`, `urgency`, `contactChannel`.
+- `PATCH /v1/leads/repair/{leadId}/status`
+  - Updates status (`new`, `contacted`, `qualified`, `discarded`, `converted`) and writes audit history.
+- `POST /v1/leads/repair/whatsapp-link`
+  - Builds WhatsApp message/url without persisting a lead.
+- `POST /v1/leads/repair/{leadId}/notes`
+  - Adds internal operational notes.
+
+### Lead create payload (example)
+
+```json
+{
+  "brand": "Apple",
+  "model": "iPhone 13",
+  "repairType": "pantalla rota",
+  "urgency": "hoy",
+  "description": "No responde el touch",
+  "contactChannel": "whatsapp",
+  "contact": "+5491160011122",
+  "wizardSource": "budget_wizard_v1"
+}
+```
+
+### Error format
+
+```json
+{
+  "success": false,
+  "errorCode": "VALIDATION_ERROR",
+  "message": "Invalid request payload.",
+  "fieldErrors": [{"field": "repairType", "message": "Field required"}]
+}
+```
+
+OpenAPI examples are available directly in Swagger for request/response models.
+
 ### Roles Hierarchy
 ```
 SUPER_ADMIN > ADMIN > EDITOR

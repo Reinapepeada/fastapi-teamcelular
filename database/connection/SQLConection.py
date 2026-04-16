@@ -17,15 +17,24 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Configuración del engine para PostgreSQL
-# Nota: "check_same_thread" es solo para SQLite, no se usa con PostgreSQL
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,  # Cambiar a True para ver las queries SQL en desarrollo
-    pool_pre_ping=True,  # Verifica la conexión antes de usarla
-    pool_size=5,  # Tamaño del pool de conexiones
-    max_overflow=10,  # Conexiones adicionales permitidas
-)
+# Configuracion del engine
+engine_kwargs: dict = {
+    "echo": False,
+}
+
+if DATABASE_URL.startswith("sqlite"):
+    # SQLite is useful for local tests; avoid Postgres-only pooling args.
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs.update(
+        {
+            "pool_pre_ping": True,
+            "pool_size": 5,
+            "max_overflow": 10,
+        }
+    )
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 
 
 def create_db_and_tables():

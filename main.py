@@ -1,16 +1,22 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 import os
 import sys
 
-from routers import product_r, branches_r, categories_r, brands_r, admin_r
+from routers import product_r, branches_r, categories_r, brands_r, admin_r, leads_r
 from database.connection.SQLConection import create_db_and_tables
 
 # Importar modelo Admin para que SQLModel lo registre
 from database.models.admin import Admin  # noqa: F401
+from database.models.lead import LeadNote, LeadRepair, LeadStatusHistory  # noqa: F401
 from sqlalchemy.exc import IntegrityError
 import subprocess
 from pathlib import Path
@@ -78,6 +84,7 @@ app.include_router(product_r.router, tags=["Products"], prefix="/products")
 app.include_router(branches_r.router, tags=["Branches"], prefix="/branches")
 app.include_router(categories_r.router, tags=["Categories"], prefix="/categories")
 app.include_router(brands_r.router, tags=["Brands"], prefix="/brands")
+app.include_router(leads_r.router)
 
 # Rutas de administración
 app.include_router(admin_r.router, tags=["Admin"], prefix="/admin")
@@ -86,6 +93,53 @@ app.include_router(admin_r.router, tags=["Admin"], prefix="/admin")
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+def _is_leads_path(path: str) -> bool:
+    return path.startswith("/v1/leads/repair")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    if not _is_leads_path(request.url.path):
+        return await request_validation_exception_handler(request, exc)
+
+    field_errors = []
+    for item in exc.errors():
+        loc = [str(part) for part in item.get("loc", []) if part not in {"body", "query", "path", "header"}]
+        field_errors.append(
+            {
+                "field": ".".join(loc) if loc else "payload",
+                "message": item.get("msg", "Invalid value"),
+            }
+        )
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "errorCode": "VALIDATION_ERROR",
+            "message": "Invalid request payload.",
+            "fieldErrors": field_errors,
+        },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_error_handler(request: Request, exc: HTTPException):
+    if not _is_leads_path(request.url.path):
+        return await http_exception_handler(request, exc)
+
+    detail = exc.detail if isinstance(exc.detail, dict) else {"message": str(exc.detail)}
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "errorCode": detail.get("errorCode", "LEAD_REQUEST_ERROR"),
+            "message": detail.get("message", "Lead request failed."),
+            "fieldErrors": detail.get("fieldErrors"),
+        },
+    )
 
 
 @app.exception_handler(IntegrityError)

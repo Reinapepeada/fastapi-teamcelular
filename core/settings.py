@@ -16,6 +16,16 @@ def env_str(name: str, default: str) -> str:
     return value.strip() if value is not None else default
 
 
+def env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value.strip())
+    except ValueError:
+        return default
+
+
 def env_csv(name: str, default: str = "*") -> list[str]:
     raw = env_str(name, default=default)
     if raw == "*":
@@ -30,6 +40,10 @@ class Settings:
     allowed_origins: list[str]
     cors_allow_credentials: bool
     run_migrations_on_startup: bool
+    leads_whatsapp_number: str
+    leads_dedupe_window_seconds: int
+    leads_rate_limit_requests: int
+    leads_rate_limit_window_seconds: int
 
 
 def get_settings() -> Settings:
@@ -45,4 +59,8 @@ def get_settings() -> Settings:
         allowed_origins=allowed_origins,
         cors_allow_credentials=cors_allow_credentials,
         run_migrations_on_startup=env_bool("RUN_MIGRATIONS_ON_STARTUP", default=False),
+        leads_whatsapp_number=env_str("LEADS_WHATSAPP_NUMBER", default=""),
+        leads_dedupe_window_seconds=env_int("LEADS_DEDUPE_WINDOW_SECONDS", default=600),
+        leads_rate_limit_requests=env_int("LEADS_RATE_LIMIT_REQUESTS", default=30),
+        leads_rate_limit_window_seconds=env_int("LEADS_RATE_LIMIT_WINDOW_SECONDS", default=60),
     )
