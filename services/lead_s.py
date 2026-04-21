@@ -130,9 +130,10 @@ def _compute_fingerprint_hash(
     brand: str,
     model: str,
     repair_type: str,
-    contact: str,
+    contact: str | None,
 ) -> str:
-    raw = f"{brand.lower()}|{model.lower()}|{repair_type.lower()}|{contact.lower()}"
+    normalized_contact = (contact or "").lower()
+    raw = f"{brand.lower()}|{model.lower()}|{repair_type.lower()}|{normalized_contact}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -201,7 +202,7 @@ def build_whatsapp_message(
     urgency: str,
     description: str | None,
     contact_channel: str,
-    contact: str,
+    contact: str | None,
 ) -> str:
     desc = description or "Sin descripcion"
     lines = [
@@ -212,8 +213,9 @@ def build_whatsapp_message(
         f"Urgencia: {_urgency_label(urgency)}",
         f"Descripcion: {desc}",
         f"Canal preferido: {_channel_label(contact_channel)}",
-        f"Contacto: {contact}",
     ]
+    if contact:
+        lines.append(f"Contacto: {contact}")
     return "\n".join(lines)
 
 
@@ -229,7 +231,7 @@ def build_whatsapp_url(message: str) -> str:
 
 def _serialize_payload_for_idempotency(
     payload: LeadRepairCreateRequest,
-    normalized_contact: str,
+    normalized_contact: str | None,
     ip: str,
     user_agent: str,
     referrer: str | None,
@@ -254,7 +256,7 @@ def _serialize_payload_for_idempotency(
 
 
 def get_whatsapp_link(payload: LeadRepairCreateRequest) -> tuple[str, str]:
-    normalized_contact = _normalize_contact(payload.contact, payload.contact_channel)
+    normalized_contact = _normalize_contact(payload.contact or "", payload.contact_channel)
     message = build_whatsapp_message(
         brand=payload.brand,
         model=payload.model,
@@ -283,7 +285,7 @@ def create_repair_lead(
     )
     _enforce_rate_limit(ip=ip, user_agent=user_agent)
 
-    normalized_contact = _normalize_contact(payload.contact, payload.contact_channel)
+    normalized_contact = _normalize_contact(payload.contact or "", payload.contact_channel) or None
     payload_dict = _serialize_payload_for_idempotency(
         payload=payload,
         normalized_contact=normalized_contact,
@@ -666,7 +668,7 @@ def build_lead_out(
         urgency=lead.urgency,
         description=lead.description,
         contact_channel=lead.contact_channel,
-        contact=lead.contact,
+        contact=lead.contact or "",
     )
 
     utm_data = {

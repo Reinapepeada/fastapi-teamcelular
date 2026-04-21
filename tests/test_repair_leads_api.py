@@ -106,6 +106,17 @@ def test_create_lead_and_get_detail(client: TestClient, sample_payload: dict):
     assert detail_body["data"]["repairType"] == "pantalla rota"
 
 
+def test_create_lead_without_contact_is_allowed(client: TestClient, sample_payload: dict):
+    payload = {**sample_payload, "contact": "", "model": "iPhone 14"}
+
+    response = client.post("/v1/leads/repair", json=payload)
+    assert response.status_code == 201
+
+    body = response.json()
+    assert body["success"] is True
+    assert "wa.me" in body["data"]["whatsappUrl"]
+
+
 def test_deduplication_marks_second_lead_as_duplicated(client: TestClient, sample_payload: dict):
     first = client.post("/v1/leads/repair", json=sample_payload)
     second = client.post("/v1/leads/repair", json=sample_payload)

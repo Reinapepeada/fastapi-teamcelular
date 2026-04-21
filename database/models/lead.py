@@ -68,7 +68,7 @@ class LeadRepair(SQLModel, table=True):
     urgency: str = Field(nullable=False, index=True)
     description: str | None = Field(default=None, nullable=True)
     contact_channel: str = Field(nullable=False, index=True)
-    contact: str = Field(nullable=False)
+    contact: str | None = Field(default=None, nullable=True)
     wizard_source: str | None = Field(default=None, nullable=True)
     status: str = Field(default=LeadRepairStatus.NEW.value, nullable=False, index=True)
     duplicate_of: str | None = Field(default=None, foreign_key="leads_repair.id", index=True)
@@ -161,7 +161,7 @@ class LeadRepairCreateRequest(BaseModel):
     urgency: LeadUrgency
     description: str | None = PydField(default=None, max_length=1000)
     contact_channel: LeadContactChannel = PydField(..., alias="contactChannel")
-    contact: str = PydField(..., min_length=3, max_length=120)
+    contact: str | None = PydField(default=None, max_length=120)
     wizard_source: str | None = PydField(default=None, alias="wizardSource", max_length=120)
     utm: LeadUtm | None = None
     metadata: LeadMetadata | None = None
@@ -193,13 +193,21 @@ class LeadRepairCreateRequest(BaseModel):
         },
     )
 
-    @field_validator("brand", "model", "repair_type", "contact", mode="before")
+    @field_validator("brand", "model", "repair_type", mode="before")
     @classmethod
     def sanitize_required(cls, value: str) -> str:
         clean = sanitize_text(str(value))
         if not clean:
             raise ValueError("must not be empty")
         return clean
+
+    @field_validator("contact", mode="before")
+    @classmethod
+    def sanitize_contact(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        clean = sanitize_text(str(value))
+        return clean or None
 
     @field_validator("description", "wizard_source", mode="before")
     @classmethod
