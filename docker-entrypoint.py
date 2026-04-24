@@ -11,6 +11,10 @@ import time
 import subprocess
 from typing import Optional
 
+from core.timezone import configure_process_timezone
+
+configure_process_timezone()
+
 RETRY_INTERVAL = float(os.getenv("DB_RETRY_INTERVAL", "2"))
 # Increase default attempts to 60 so slow DBs get more time to start in CI/PAAS
 RETRY_ATTEMPTS = int(os.getenv("DB_RETRY_ATTEMPTS", "60"))

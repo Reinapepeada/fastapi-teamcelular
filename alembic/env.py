@@ -24,7 +24,7 @@ from database.models.product import (
     Brand,
 )
 from database.models.admin import Admin
-from database.models.lead import LeadNote, LeadRepair, LeadStatusHistory
+from database.models.lead import LeadInteraction, LeadNote, LeadRepair, LeadStatusHistory
 
 # Obtener la URL desde la variable de entorno
 database_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")

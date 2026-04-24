@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field as PydField, field_validator
 from sqlalchemy import CheckConstraint
 from sqlmodel import Field, SQLModel
 
+from core.timezone import now_argentina_naive
+
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 _MULTI_SPACE_RE = re.compile(r"\s+")
 _HTML_TAG_RE = re.compile(r"<[^>]*>")
@@ -69,6 +71,7 @@ class LeadRepair(SQLModel, table=True):
     description: str | None = Field(default=None, nullable=True)
     contact_channel: str = Field(nullable=False, index=True)
     contact: str | None = Field(default=None, nullable=True)
+    lead_attempt_id: str | None = Field(default=None, nullable=True, index=True)
     wizard_source: str | None = Field(default=None, nullable=True)
     status: str = Field(default=LeadRepairStatus.NEW.value, nullable=False, index=True)
     duplicate_of: str | None = Field(default=None, foreign_key="leads_repair.id", index=True)
@@ -86,11 +89,48 @@ class LeadRepair(SQLModel, table=True):
     user_agent: str | None = Field(default=None, nullable=True)
     referrer: str | None = Field(default=None, nullable=True)
 
-    created_at: datetime = Field(default_factory=datetime.now, index=True)
+    created_at: datetime = Field(default_factory=now_argentina_naive, index=True)
     updated_at: datetime = Field(
-        default_factory=datetime.now,
-        sa_column_kwargs={"onupdate": datetime.now},
+        default_factory=now_argentina_naive,
+        sa_column_kwargs={"onupdate": now_argentina_naive},
     )
+
+
+class LeadInteraction(SQLModel, table=True):
+    __tablename__ = "lead_interactions"
+    __table_args__ = (
+        CheckConstraint("event_name <> ''", name="ck_lead_interactions_event_name"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    event_name: str = Field(nullable=False, index=True)
+    cta_name: str = Field(nullable=False, index=True)
+    cta_location: str = Field(nullable=False, index=True)
+    cta_variant: str = Field(nullable=False, index=True)
+    destination: str | None = Field(default=None, nullable=True)
+    page_path: str = Field(nullable=False, index=True)
+    page_title: str | None = Field(default=None, nullable=True)
+    lead_id: str | None = Field(default=None, foreign_key="leads_repair.id", nullable=True, index=True)
+    lead_attempt_id: str | None = Field(default=None, nullable=True, index=True)
+    form_name: str | None = Field(default=None, nullable=True, index=True)
+    form_location: str | None = Field(default=None, nullable=True)
+    form_version: str | None = Field(default=None, nullable=True)
+    step_index: int | None = Field(default=None, nullable=True)
+    step_id: str | None = Field(default=None, nullable=True)
+    step_label: str | None = Field(default=None, nullable=True)
+    total_steps: int | None = Field(default=None, nullable=True)
+    brand: str | None = Field(default=None, nullable=True)
+    model: str | None = Field(default=None, nullable=True)
+    repair_type: str | None = Field(default=None, nullable=True)
+    urgency: str | None = Field(default=None, nullable=True)
+    contact_channel: str | None = Field(default=None, nullable=True)
+    contact: str | None = Field(default=None, nullable=True)
+    description: str | None = Field(default=None, nullable=True)
+    payload_json: str = Field(nullable=False)
+    ip: str | None = Field(default=None, nullable=True)
+    user_agent: str | None = Field(default=None, nullable=True)
+    referrer: str | None = Field(default=None, nullable=True)
+    created_at: datetime = Field(default_factory=now_argentina_naive, index=True)
 
 
 class LeadStatusHistory(SQLModel, table=True):
@@ -107,7 +147,7 @@ class LeadStatusHistory(SQLModel, table=True):
     old_status: str | None = Field(default=None, nullable=True)
     new_status: str = Field(nullable=False)
     changed_by: str = Field(default="system", nullable=False)
-    changed_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    changed_at: datetime = Field(default_factory=now_argentina_naive, nullable=False)
 
 
 class LeadNote(SQLModel, table=True):
@@ -117,7 +157,7 @@ class LeadNote(SQLModel, table=True):
     lead_id: str = Field(foreign_key="leads_repair.id", nullable=False, index=True)
     note: str = Field(nullable=False)
     created_by: str = Field(default="system", nullable=False)
-    created_at: datetime = Field(default_factory=datetime.now, nullable=False)
+    created_at: datetime = Field(default_factory=now_argentina_naive, nullable=False)
 
 
 class LeadUtm(BaseModel):
@@ -162,6 +202,7 @@ class LeadRepairCreateRequest(BaseModel):
     description: str | None = PydField(default=None, max_length=1000)
     contact_channel: LeadContactChannel = PydField(..., alias="contactChannel")
     contact: str | None = PydField(default=None, max_length=120)
+    lead_attempt_id: str | None = PydField(default=None, alias="leadAttemptId", max_length=120)
     wizard_source: str | None = PydField(default=None, alias="wizardSource", max_length=120)
     utm: LeadUtm | None = None
     metadata: LeadMetadata | None = None
@@ -178,6 +219,7 @@ class LeadRepairCreateRequest(BaseModel):
                 "description": "No responde el touch en mitad de pantalla",
                 "contactChannel": "whatsapp",
                 "contact": "+5491160011122",
+                "leadAttemptId": "lead-attempt-abc123",
                 "wizardSource": "budget_wizard_v1",
                 "utm": {
                     "source": "google",
@@ -209,9 +251,111 @@ class LeadRepairCreateRequest(BaseModel):
         clean = sanitize_text(str(value))
         return clean or None
 
-    @field_validator("description", "wizard_source", mode="before")
+    @field_validator("description", "lead_attempt_id", "wizard_source", mode="before")
     @classmethod
     def sanitize_optional(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        clean = sanitize_text(str(value))
+        return clean or None
+
+
+class LeadInteractionCreateRequest(BaseModel):
+    event_name: str = PydField(..., alias="eventName", min_length=2, max_length=80)
+    cta_name: str = PydField(..., alias="ctaName", min_length=2, max_length=120)
+    cta_location: str = PydField(..., alias="ctaLocation", min_length=2, max_length=120)
+    cta_variant: str = PydField(..., alias="ctaVariant", min_length=2, max_length=40)
+    destination: str | None = PydField(default=None, max_length=400)
+    page_path: str = PydField(..., alias="pagePath", min_length=1, max_length=400)
+    page_title: str | None = PydField(default=None, alias="pageTitle", max_length=200)
+    lead_id: str | None = PydField(default=None, alias="leadId", max_length=36)
+    lead_attempt_id: str | None = PydField(default=None, alias="leadAttemptId", max_length=120)
+    form_name: str | None = PydField(default=None, alias="formName", max_length=80)
+    form_location: str | None = PydField(default=None, alias="formLocation", max_length=120)
+    form_version: str | None = PydField(default=None, alias="formVersion", max_length=40)
+    step_index: int | None = PydField(default=None, alias="stepIndex", ge=1)
+    step_id: str | None = PydField(default=None, alias="stepId", max_length=80)
+    step_label: str | None = PydField(default=None, alias="stepLabel", max_length=80)
+    total_steps: int | None = PydField(default=None, alias="totalSteps", ge=1)
+    brand: str | None = PydField(default=None, max_length=80)
+    model: str | None = PydField(default=None, max_length=80)
+    repair_type: str | None = PydField(default=None, alias="repairType", max_length=120)
+    urgency: str | None = PydField(default=None, max_length=40)
+    contact_channel: str | None = PydField(default=None, alias="contactChannel", max_length=40)
+    contact: str | None = PydField(default=None, max_length=120)
+    description: str | None = PydField(default=None, max_length=1000)
+    metadata: LeadMetadata | None = None
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",
+        json_schema_extra={
+            "example": {
+                "eventName": "cta_click",
+                "ctaName": "reparaciones_hero_whatsapp",
+                "ctaLocation": "reparaciones_hero",
+                "ctaVariant": "whatsapp",
+                "destination": "https://wa.me/5491151034595?text=Hola",
+                "pagePath": "/reparaciones",
+                "pageTitle": "Servicios de reparacion de celulares en CABA | Team Celular",
+                "leadAttemptId": "lead-attempt-abc123",
+                "formName": "repair_budget_wizard",
+                "formLocation": "presupuesto_reparacion",
+                "formVersion": "v1",
+                "stepIndex": 4,
+                "stepId": "contact",
+                "stepLabel": "Contacto",
+                "totalSteps": 4,
+                "brand": "Apple",
+                "model": "iPhone 13",
+                "repairType": "Pantalla",
+                "urgency": "hoy",
+                "contactChannel": "whatsapp",
+                "metadata": {
+                    "ip": "203.0.113.10",
+                    "userAgent": "Mozilla/5.0",
+                    "referrer": "https://teamcelular.example/reparaciones",
+                },
+            }
+        },
+    )
+
+    @field_validator(
+        "event_name",
+        "cta_name",
+        "cta_location",
+        "cta_variant",
+        "page_path",
+        mode="before",
+    )
+    @classmethod
+    def sanitize_required_text(cls, value: str) -> str:
+        clean = sanitize_text(str(value))
+        if not clean:
+            raise ValueError("must not be empty")
+        return clean
+
+    @field_validator(
+        "destination",
+        "page_title",
+        "lead_id",
+        "lead_attempt_id",
+        "form_name",
+        "form_location",
+        "form_version",
+        "step_id",
+        "step_label",
+        "brand",
+        "model",
+        "repair_type",
+        "urgency",
+        "contact_channel",
+        "contact",
+        "description",
+        mode="before",
+    )
+    @classmethod
+    def sanitize_optional_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         clean = sanitize_text(str(value))
@@ -307,7 +451,8 @@ class LeadRepairOut(BaseModel):
     urgency: LeadUrgency
     description: str | None = None
     contact_channel: LeadContactChannel = PydField(alias="contactChannel")
-    contact: str
+    contact: str | None = None
+    lead_attempt_id: str | None = PydField(default=None, alias="leadAttemptId")
     wizard_source: str | None = PydField(default=None, alias="wizardSource")
     status: str
     duplicate_of: str | None = PydField(default=None, alias="duplicateOf")
@@ -366,6 +511,87 @@ class LeadDetailResponse(BaseModel):
 class LeadListResponse(BaseModel):
     success: Literal[True] = True
     data: LeadListData
+
+
+class LeadInteractionData(BaseModel):
+    interaction_id: int = PydField(alias="interactionId")
+    created_at: datetime = PydField(alias="createdAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class LeadInteractionResponse(BaseModel):
+    success: Literal[True] = True
+    data: LeadInteractionData
+
+
+class LeadInteractionOut(BaseModel):
+    interaction_id: int = PydField(alias="interactionId")
+    event_name: str = PydField(alias="eventName")
+    cta_name: str = PydField(alias="ctaName")
+    cta_location: str = PydField(alias="ctaLocation")
+    cta_variant: str = PydField(alias="ctaVariant")
+    destination: str | None = None
+    page_path: str = PydField(alias="pagePath")
+    page_title: str | None = PydField(default=None, alias="pageTitle")
+    lead_id: str | None = PydField(default=None, alias="leadId")
+    lead_attempt_id: str | None = PydField(default=None, alias="leadAttemptId")
+    form_name: str | None = PydField(default=None, alias="formName")
+    form_location: str | None = PydField(default=None, alias="formLocation")
+    form_version: str | None = PydField(default=None, alias="formVersion")
+    step_index: int | None = PydField(default=None, alias="stepIndex")
+    step_id: str | None = PydField(default=None, alias="stepId")
+    step_label: str | None = PydField(default=None, alias="stepLabel")
+    total_steps: int | None = PydField(default=None, alias="totalSteps")
+    brand: str | None = None
+    model: str | None = None
+    repair_type: str | None = PydField(default=None, alias="repairType")
+    urgency: str | None = None
+    contact_channel: str | None = PydField(default=None, alias="contactChannel")
+    contact: str | None = None
+    description: str | None = None
+    payload_json: str = PydField(alias="payloadJson")
+    ip: str | None = None
+    user_agent: str | None = PydField(default=None, alias="userAgent")
+    referrer: str | None = None
+    created_at: datetime = PydField(alias="createdAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class LeadInteractionListData(BaseModel):
+    items: list[LeadInteractionOut]
+    total: int
+    page: int
+    size: int
+    pages: int
+
+
+class LeadInteractionListResponse(BaseModel):
+    success: Literal[True] = True
+    data: LeadInteractionListData
+
+
+class LeadInteractionMetricItem(BaseModel):
+    key: str
+    total: int
+
+
+class LeadInteractionMetricsData(BaseModel):
+    total_interactions: int = PydField(alias="totalInteractions")
+    by_event: list[LeadInteractionMetricItem] = PydField(alias="byEvent")
+    by_cta_name: list[LeadInteractionMetricItem] = PydField(alias="byCtaName")
+    by_cta_variant: list[LeadInteractionMetricItem] = PydField(alias="byCtaVariant")
+    by_page: list[LeadInteractionMetricItem] = PydField(alias="byPage")
+    by_location: list[LeadInteractionMetricItem] = PydField(alias="byLocation")
+    by_date: list[LeadMetricsDateItem] = PydField(alias="byDate")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class LeadInteractionMetricsResponse(BaseModel):
+    success: Literal[True] = True
+    data: LeadInteractionMetricsData
 
 
 class LeadMetricsStatusItem(BaseModel):

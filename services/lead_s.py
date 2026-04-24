@@ -14,8 +14,11 @@ from sqlalchemy import desc, func
 from sqlmodel import Session, select
 
 from core.settings import get_settings
+from core.timezone import now_argentina_naive, to_argentina_datetime
 from database.models.lead import (
     LeadContactChannel,
+    LeadInteraction,
+    LeadInteractionCreateRequest,
     LeadMetadata,
     LeadNote,
     LeadRepair,
@@ -81,13 +84,24 @@ class LeadMetricsResult:
     by_date: list[dict[str, Any]]
 
 
+@dataclass
+class LeadInteractionsResult:
+    total_interactions: int
+    by_event: list[dict[str, Any]]
+    by_cta_name: list[dict[str, Any]]
+    by_cta_variant: list[dict[str, Any]]
+    by_page: list[dict[str, Any]]
+    by_location: list[dict[str, Any]]
+    by_date: list[dict[str, Any]]
+
+
 def reset_lead_runtime_state_for_tests() -> None:
     """Clear in-memory anti-spam state used by rate limiting."""
     with _RATE_LIMIT_LOCK:
         _RATE_LIMIT_BUCKETS.clear()
 
 
-def _enforce_rate_limit(ip: str, user_agent: str) -> None:
+def _enforce_rate_limit(ip: str, user_agent: str, scope: str = "lead") -> None:
     settings = get_settings()
     max_requests = settings.leads_rate_limit_requests
     window_seconds = settings.leads_rate_limit_window_seconds
@@ -96,7 +110,7 @@ def _enforce_rate_limit(ip: str, user_agent: str) -> None:
         return
 
     now_ts = datetime.now().timestamp()
-    key = f"{ip}|{user_agent}"
+    key = f"{scope}:{ip}|{user_agent}"
 
     with _RATE_LIMIT_LOCK:
         bucket = _RATE_LIMIT_BUCKETS[key]
@@ -245,6 +259,7 @@ def _serialize_payload_for_idempotency(
         "description": payload.description,
         "contactChannel": payload.contact_channel.value,
         "contact": normalized_contact,
+        "leadAttemptId": payload.lead_attempt_id,
         "wizardSource": payload.wizard_source,
         "utm": utm,
         "metadata": {
@@ -283,7 +298,7 @@ def create_repair_lead(
         request_user_agent=request_user_agent,
         request_referrer=request_referrer,
     )
-    _enforce_rate_limit(ip=ip, user_agent=user_agent)
+    _enforce_rate_limit(ip=ip, user_agent=user_agent, scope="lead")
 
     normalized_contact = _normalize_contact(payload.contact or "", payload.contact_channel) or None
     payload_dict = _serialize_payload_for_idempotency(
@@ -326,7 +341,7 @@ def create_repair_lead(
             return LeadCreateResult(lead=existing_by_key, whatsapp_url=whatsapp_url, replayed=True)
 
     settings = get_settings()
-    now = datetime.now()
+    now = now_argentina_naive()
     dedupe_threshold = now - timedelta(seconds=settings.leads_dedupe_window_seconds)
 
     duplicate_target = session.exec(
@@ -356,6 +371,7 @@ def create_repair_lead(
         description=payload.description,
         contact_channel=payload.contact_channel.value,
         contact=normalized_contact,
+        lead_attempt_id=payload.lead_attempt_id,
         wizard_source=payload.wizard_source,
         status=status_value,
         duplicate_of=duplicate_of,
@@ -394,6 +410,244 @@ def create_repair_lead(
             error_code="LEAD_CREATE_ERROR",
             message=f"Could not create lead: {exc}",
         ) from exc
+
+
+def create_lead_interaction(
+    payload: LeadInteractionCreateRequest,
+    session: Session,
+    request_ip: str | None,
+    request_user_agent: str | None,
+    request_referrer: str | None,
+) -> LeadInteraction:
+    ip = (payload.metadata.ip if payload.metadata else None) or request_ip or "unknown"
+    user_agent = (
+        (payload.metadata.user_agent if payload.metadata else None)
+        or request_user_agent
+        or "unknown"
+    )
+    referrer = (payload.metadata.referrer if payload.metadata else None) or request_referrer
+
+    _enforce_rate_limit(ip=ip, user_agent=user_agent, scope="interaction")
+
+    payload_data = payload.model_dump(by_alias=True, exclude_none=True)
+    payload_data["metadata"] = {
+        "ip": ip,
+        "userAgent": user_agent,
+        "referrer": referrer,
+    }
+
+    interaction = LeadInteraction(
+        event_name=payload.event_name,
+        cta_name=payload.cta_name,
+        cta_location=payload.cta_location,
+        cta_variant=payload.cta_variant,
+        destination=payload.destination,
+        page_path=payload.page_path,
+        page_title=payload.page_title,
+        lead_id=payload.lead_id,
+        lead_attempt_id=payload.lead_attempt_id,
+        form_name=payload.form_name,
+        form_location=payload.form_location,
+        form_version=payload.form_version,
+        step_index=payload.step_index,
+        step_id=payload.step_id,
+        step_label=payload.step_label,
+        total_steps=payload.total_steps,
+        brand=payload.brand,
+        model=payload.model,
+        repair_type=payload.repair_type,
+        urgency=payload.urgency,
+        contact_channel=payload.contact_channel,
+        contact=payload.contact,
+        description=payload.description,
+        payload_json=json.dumps(payload_data, sort_keys=True, separators=(",", ":"), ensure_ascii=True),
+        ip=ip,
+        user_agent=user_agent,
+        referrer=referrer,
+    )
+
+    try:
+        session.add(interaction)
+        session.commit()
+        session.refresh(interaction)
+        return interaction
+    except Exception as exc:
+        session.rollback()
+        raise LeadServiceError(
+            status_code=500,
+            error_code="LEAD_INTERACTION_CREATE_ERROR",
+            message=f"Could not create lead interaction: {exc}",
+        ) from exc
+
+
+def _build_filtered_interactions_query(
+    *,
+    event_name: str | None,
+    cta_variant: str | None,
+    cta_location: str | None,
+    page_path: str | None,
+    lead_attempt_id: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+):
+    query = select(LeadInteraction)
+
+    if event_name:
+        query = query.where(LeadInteraction.event_name == event_name)
+    if cta_variant:
+        query = query.where(LeadInteraction.cta_variant == cta_variant)
+    if cta_location:
+        query = query.where(LeadInteraction.cta_location == cta_location)
+    if page_path:
+        query = query.where(LeadInteraction.page_path == page_path)
+    if lead_attempt_id:
+        query = query.where(LeadInteraction.lead_attempt_id == lead_attempt_id)
+    if date_from is not None:
+        query = query.where(LeadInteraction.created_at >= date_from)
+    if date_to is not None:
+        query = query.where(LeadInteraction.created_at <= date_to)
+
+    return query
+
+
+def list_lead_interactions(
+    *,
+    session: Session,
+    event_name: str | None,
+    cta_variant: str | None,
+    cta_location: str | None,
+    page_path: str | None,
+    lead_attempt_id: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+    page: int,
+    size: int,
+) -> tuple[list[LeadInteraction], int]:
+    query = _build_filtered_interactions_query(
+        event_name=event_name,
+        cta_variant=cta_variant,
+        cta_location=cta_location,
+        page_path=page_path,
+        lead_attempt_id=lead_attempt_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    total_stmt = select(func.count()).select_from(query.order_by(None).subquery())
+    total = session.execute(total_stmt).scalar_one()
+
+    rows = session.exec(
+        query.order_by(desc(LeadInteraction.created_at)).offset((page - 1) * size).limit(size)
+    ).all()
+    return rows, int(total)
+
+
+def get_lead_interactions_metrics(
+    *,
+    session: Session,
+    event_name: str | None,
+    cta_variant: str | None,
+    cta_location: str | None,
+    page_path: str | None,
+    lead_attempt_id: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> LeadInteractionsResult:
+    filtered_query = _build_filtered_interactions_query(
+        event_name=event_name,
+        cta_variant=cta_variant,
+        cta_location=cta_location,
+        page_path=page_path,
+        lead_attempt_id=lead_attempt_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    filtered_subquery = filtered_query.subquery()
+
+    total_interactions = int(
+        session.execute(select(func.count()).select_from(filtered_subquery)).scalar_one()
+    )
+
+    event_rows = session.execute(
+        select(filtered_subquery.c.event_name, func.count().label("total"))
+        .group_by(filtered_subquery.c.event_name)
+        .order_by(func.count().desc())
+    ).all()
+
+    cta_name_rows = session.execute(
+        select(filtered_subquery.c.cta_name, func.count().label("total"))
+        .group_by(filtered_subquery.c.cta_name)
+        .order_by(func.count().desc())
+    ).all()
+
+    variant_rows = session.execute(
+        select(filtered_subquery.c.cta_variant, func.count().label("total"))
+        .group_by(filtered_subquery.c.cta_variant)
+        .order_by(func.count().desc())
+    ).all()
+
+    page_rows = session.execute(
+        select(filtered_subquery.c.page_path, func.count().label("total"))
+        .group_by(filtered_subquery.c.page_path)
+        .order_by(func.count().desc())
+    ).all()
+
+    location_rows = session.execute(
+        select(filtered_subquery.c.cta_location, func.count().label("total"))
+        .group_by(filtered_subquery.c.cta_location)
+        .order_by(func.count().desc())
+    ).all()
+
+    date_bucket = func.date(filtered_subquery.c.created_at)
+    date_rows = session.execute(
+        select(date_bucket.label("bucket_date"), func.count().label("total"))
+        .group_by(date_bucket)
+        .order_by(date_bucket.asc())
+    ).all()
+
+    return LeadInteractionsResult(
+        total_interactions=total_interactions,
+        by_event=[{"key": str(row[0]), "total": int(row[1])} for row in event_rows],
+        by_cta_name=[{"key": str(row[0]), "total": int(row[1])} for row in cta_name_rows],
+        by_cta_variant=[{"key": str(row[0]), "total": int(row[1])} for row in variant_rows],
+        by_page=[{"key": str(row[0]), "total": int(row[1])} for row in page_rows],
+        by_location=[{"key": str(row[0]), "total": int(row[1])} for row in location_rows],
+        by_date=[{"date": str(row[0]), "total": int(row[1])} for row in date_rows],
+    )
+
+
+def build_interaction_out(interaction: LeadInteraction) -> dict[str, Any]:
+    return {
+        "interaction_id": interaction.id,
+        "event_name": interaction.event_name,
+        "cta_name": interaction.cta_name,
+        "cta_location": interaction.cta_location,
+        "cta_variant": interaction.cta_variant,
+        "destination": interaction.destination,
+        "page_path": interaction.page_path,
+        "page_title": interaction.page_title,
+        "lead_id": interaction.lead_id,
+        "lead_attempt_id": interaction.lead_attempt_id,
+        "form_name": interaction.form_name,
+        "form_location": interaction.form_location,
+        "form_version": interaction.form_version,
+        "step_index": interaction.step_index,
+        "step_id": interaction.step_id,
+        "step_label": interaction.step_label,
+        "total_steps": interaction.total_steps,
+        "brand": interaction.brand,
+        "model": interaction.model,
+        "repair_type": interaction.repair_type,
+        "urgency": interaction.urgency,
+        "contact_channel": interaction.contact_channel,
+        "contact": interaction.contact,
+        "description": interaction.description,
+        "payload_json": interaction.payload_json,
+        "ip": interaction.ip,
+        "user_agent": interaction.user_agent,
+        "referrer": interaction.referrer,
+        "created_at": to_argentina_datetime(interaction.created_at),
+    }
 
 
 def get_repair_lead_or_404(lead_id: str, session: Session) -> LeadRepair:
@@ -589,12 +843,12 @@ def update_repair_lead_status(
             lead=lead,
             old_status=old_status,
             new_status=new_status.value,
-            changed_at=datetime.now(),
+            changed_at=now_argentina_naive(),
         )
 
     try:
         lead.status = new_status.value
-        lead.updated_at = datetime.now()
+        lead.updated_at = now_argentina_naive()
 
         history = LeadStatusHistory(
             lead_id=lead.id,
@@ -638,7 +892,7 @@ def add_repair_lead_note(
     )
 
     try:
-        lead.updated_at = datetime.now()
+        lead.updated_at = now_argentina_naive()
         session.add(lead)
         session.add(new_note)
         session.commit()
@@ -693,11 +947,12 @@ def build_lead_out(
         "description": lead.description,
         "contact_channel": lead.contact_channel,
         "contact": lead.contact,
+        "lead_attempt_id": lead.lead_attempt_id,
         "wizard_source": lead.wizard_source,
         "status": lead.status,
         "duplicate_of": lead.duplicate_of,
-        "created_at": lead.created_at,
-        "updated_at": lead.updated_at,
+        "created_at": to_argentina_datetime(lead.created_at),
+        "updated_at": to_argentina_datetime(lead.updated_at),
         "whatsapp_url": build_whatsapp_url(message),
         "utm": utm_data if any(utm_data.values()) else None,
         "metadata": metadata_data if any(metadata_data.values()) else None,
@@ -711,7 +966,7 @@ def build_lead_out(
                 "old_status": item.old_status,
                 "new_status": item.new_status,
                 "changed_by": item.changed_by,
-                "changed_at": item.changed_at,
+                "changed_at": to_argentina_datetime(item.changed_at),
             }
             for item in status_history
         ]
@@ -722,7 +977,7 @@ def build_lead_out(
                 "id": note.id,
                 "note": note.note,
                 "created_by": note.created_by,
-                "created_at": note.created_at,
+                "created_at": to_argentina_datetime(note.created_at),
             }
             for note in notes
         ]

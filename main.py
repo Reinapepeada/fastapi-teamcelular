@@ -11,12 +11,13 @@ import logging
 import os
 import sys
 
+from core.timezone import configure_process_timezone
 from routers import product_r, branches_r, categories_r, brands_r, admin_r, leads_r
 from database.connection.SQLConection import create_db_and_tables
 
 # Importar modelo Admin para que SQLModel lo registre
 from database.models.admin import Admin  # noqa: F401
-from database.models.lead import LeadNote, LeadRepair, LeadStatusHistory  # noqa: F401
+from database.models.lead import LeadInteraction, LeadNote, LeadRepair, LeadStatusHistory  # noqa: F401
 from sqlalchemy.exc import IntegrityError
 import subprocess
 from pathlib import Path
@@ -25,6 +26,7 @@ from core.logging import configure_logging
 from core.settings import get_settings
 
 settings = get_settings()
+configure_process_timezone()
 configure_logging(settings.log_level)
 logger = logging.getLogger(__name__)
 

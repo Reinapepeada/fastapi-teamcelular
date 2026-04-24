@@ -5,10 +5,18 @@ from datetime import datetime
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response, status
 
 from database.connection.SQLConection import SessionDep
+from core.timezone import to_argentina_datetime
 from database.models.lead import (
     LeadContactChannel,
     LeadCreateData,
     LeadCreateResponse,
+    LeadInteractionCreateRequest,
+    LeadInteractionData,
+    LeadInteractionListData,
+    LeadInteractionListResponse,
+    LeadInteractionMetricsData,
+    LeadInteractionMetricsResponse,
+    LeadInteractionResponse,
     LeadDetailResponse,
     LeadErrorResponse,
     LeadListData,
@@ -31,12 +39,16 @@ from services.lead_s import (
     LeadServiceError,
     add_repair_lead_note,
     build_lead_out,
+    build_interaction_out,
+    create_lead_interaction,
     create_repair_lead,
     get_notes,
     get_repair_lead_or_404,
+    get_lead_interactions_metrics,
     get_repair_leads_metrics,
     get_status_history,
     get_whatsapp_link,
+    list_lead_interactions,
     list_repair_leads,
     update_repair_lead_status,
 )
@@ -85,7 +97,7 @@ def create_repair_lead_endpoint(
             "data": LeadCreateData(
                 lead_id=result.lead.id,
                 status=result.lead.status,
-                created_at=result.lead.created_at,
+                created_at=to_argentina_datetime(result.lead.created_at),
                 whatsapp_url=result.whatsapp_url,
             ),
         }
@@ -97,6 +109,181 @@ def create_repair_lead_endpoint(
             detail={
                 "errorCode": "LEAD_CREATE_UNEXPECTED_ERROR",
                 "message": f"Unexpected error while creating lead: {exc}",
+            },
+        ) from exc
+
+
+@router.post(
+    "/interactions",
+    response_model=LeadInteractionResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        400: {"model": LeadErrorResponse},
+        429: {"model": LeadErrorResponse},
+        422: {"model": LeadErrorResponse},
+    },
+)
+def create_lead_interaction_endpoint(
+    payload: LeadInteractionCreateRequest,
+    request: Request,
+    session: SessionDep,
+):
+    """Persist a CTA click or wizard submit interaction for later funnel analysis."""
+    try:
+        interaction = create_lead_interaction(
+            payload=payload,
+            session=session,
+            request_ip=request.client.host if request.client else None,
+            request_user_agent=request.headers.get("user-agent"),
+            request_referrer=request.headers.get("referer"),
+        )
+
+        return {
+            "success": True,
+            "data": LeadInteractionData(
+                interaction_id=interaction.id or 0,
+                created_at=to_argentina_datetime(interaction.created_at),
+            ),
+        }
+    except LeadServiceError as err:
+        _raise_as_http(err)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "errorCode": "LEAD_INTERACTION_UNEXPECTED_ERROR",
+                "message": f"Unexpected error while creating lead interaction: {exc}",
+            },
+        ) from exc
+
+
+@router.get(
+    "/interactions",
+    response_model=LeadInteractionListResponse,
+    responses={400: {"model": LeadErrorResponse}},
+)
+def list_lead_interactions_endpoint(
+    session: SessionDep,
+    event_name: str | None = Query(default=None, alias="eventName"),
+    cta_variant: str | None = Query(default=None, alias="ctaVariant"),
+    cta_location: str | None = Query(default=None, alias="ctaLocation"),
+    page_path: str | None = Query(default=None, alias="pagePath"),
+    lead_attempt_id: str | None = Query(default=None, alias="leadAttemptId"),
+    date_from: datetime | None = Query(default=None, alias="dateFrom"),
+    date_to: datetime | None = Query(default=None, alias="dateTo"),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=10, ge=1, le=100),
+):
+    """Paginated interaction listing for admin visualization."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "errorCode": "INVALID_DATE_RANGE",
+                "message": "dateFrom must be less than or equal to dateTo.",
+                "fieldErrors": [
+                    {"field": "dateFrom", "message": "Must be <= dateTo"},
+                ],
+            },
+        )
+
+    try:
+        rows, total = list_lead_interactions(
+            session=session,
+            event_name=event_name,
+            cta_variant=cta_variant,
+            cta_location=cta_location,
+            page_path=page_path,
+            lead_attempt_id=lead_attempt_id,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            size=size,
+        )
+        pages = (total + size - 1) // size if total > 0 else 0
+
+        return {
+            "success": True,
+            "data": LeadInteractionListData(
+                items=[build_interaction_out(item) for item in rows],
+                total=total,
+                page=page,
+                size=size,
+                pages=pages,
+            ),
+        }
+    except LeadServiceError as err:
+        _raise_as_http(err)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "errorCode": "LEAD_INTERACTION_LIST_UNEXPECTED_ERROR",
+                "message": f"Unexpected error while listing interactions: {exc}",
+            },
+        ) from exc
+
+
+@router.get(
+    "/interactions/metrics",
+    response_model=LeadInteractionMetricsResponse,
+    responses={400: {"model": LeadErrorResponse}},
+)
+def get_lead_interactions_metrics_endpoint(
+    session: SessionDep,
+    event_name: str | None = Query(default=None, alias="eventName"),
+    cta_variant: str | None = Query(default=None, alias="ctaVariant"),
+    cta_location: str | None = Query(default=None, alias="ctaLocation"),
+    page_path: str | None = Query(default=None, alias="pagePath"),
+    lead_attempt_id: str | None = Query(default=None, alias="leadAttemptId"),
+    date_from: datetime | None = Query(default=None, alias="dateFrom"),
+    date_to: datetime | None = Query(default=None, alias="dateTo"),
+):
+    """Aggregated interaction metrics for the admin dashboard."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "errorCode": "INVALID_DATE_RANGE",
+                "message": "dateFrom must be less than or equal to dateTo.",
+                "fieldErrors": [
+                    {"field": "dateFrom", "message": "Must be <= dateTo"},
+                ],
+            },
+        )
+
+    try:
+        metrics = get_lead_interactions_metrics(
+            session=session,
+            event_name=event_name,
+            cta_variant=cta_variant,
+            cta_location=cta_location,
+            page_path=page_path,
+            lead_attempt_id=lead_attempt_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        return {
+            "success": True,
+            "data": LeadInteractionMetricsData(
+                total_interactions=metrics.total_interactions,
+                by_event=metrics.by_event,
+                by_cta_name=metrics.by_cta_name,
+                by_cta_variant=metrics.by_cta_variant,
+                by_page=metrics.by_page,
+                by_location=metrics.by_location,
+                by_date=metrics.by_date,
+            ),
+        }
+    except LeadServiceError as err:
+        _raise_as_http(err)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "errorCode": "LEAD_INTERACTION_METRICS_UNEXPECTED_ERROR",
+                "message": f"Unexpected error while calculating interaction metrics: {exc}",
             },
         ) from exc
 
@@ -318,7 +505,7 @@ def update_repair_lead_status_endpoint(
                 lead_id=result.lead.id,
                 old_status=result.old_status,
                 new_status=result.new_status,
-                changed_at=result.changed_at,
+                changed_at=to_argentina_datetime(result.changed_at),
             ),
         }
     except LeadServiceError as err:
@@ -354,7 +541,11 @@ def create_repair_lead_note_endpoint(
         )
         return {
             "success": True,
-            "data": LeadNoteData(lead_id=lead_id, note_id=note.id, created_at=note.created_at),
+            "data": LeadNoteData(
+                lead_id=lead_id,
+                note_id=note.id,
+                created_at=to_argentina_datetime(note.created_at),
+            ),
         }
     except LeadServiceError as err:
         _raise_as_http(err)

@@ -5,6 +5,8 @@ from typing import List, Optional
 from datetime import datetime
 from enum import Enum
 
+from core.timezone import now_argentina_naive
+
 
 # =============================================
 # MODELOS DE BASE DE DATOS (SQLModel)
@@ -17,7 +19,7 @@ class Branch(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, nullable=False)
     location: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_argentina_naive)
 
     products: List["ProductVariant"] = Relationship(back_populates="branch")
 
@@ -28,7 +30,7 @@ class Category(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True, nullable=False)
     description: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_argentina_naive)
 
     products: List["Product"] = Relationship(back_populates="category")
     discounts: List["Discount"] = Relationship(back_populates="category")
@@ -39,7 +41,7 @@ class Brand(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True, nullable=False)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_argentina_naive)
 
     products: List["Product"] = Relationship(back_populates="brand")
 
@@ -127,9 +129,9 @@ class Product(SQLModel, table=True):
     status: ProductStatus = Eenum(ProductStatus, default=ProductStatus.ACTIVE, nullable=False)
     category_id: int | None = Field(default=None, foreign_key="category.id", index=True)
     brand_id: int | None = Field(default=None, foreign_key="brand.id", index=True)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_argentina_naive)
     updated_at: datetime = Field(
-        default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now}
+        default_factory=now_argentina_naive, sa_column_kwargs={"onupdate": now_argentina_naive}
     )
 
     # Relaciones
@@ -159,9 +161,9 @@ class ProductVariant(SQLModel, table=True):
     branch_id: int | None = Field(default=None, foreign_key="branch.id", index=True)
     stock: int = Field(default=0, index=True)
     min_stock: int = Field(default=5, index=True)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_argentina_naive)
     updated_at: datetime = Field(
-        default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now}
+        default_factory=now_argentina_naive, sa_column_kwargs={"onupdate": now_argentina_naive}
     )
 
     # Relaciones
@@ -176,7 +178,7 @@ class ProductImage(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     variant_id: int = Field(foreign_key="productvariant.id", nullable=False, index=True)
     image_url: str = Field(nullable=False)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_argentina_naive)
 
     variant: Optional["ProductVariant"] = Relationship(back_populates="images")
 

@@ -8,6 +8,10 @@ import sys
 import subprocess
 from pathlib import Path
 
+from core.timezone import configure_process_timezone
+
+configure_process_timezone()
+
 
 # Colores para la terminal
 class Colors:

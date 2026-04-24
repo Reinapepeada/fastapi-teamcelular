@@ -3,6 +3,8 @@ from sqlmodel import Field, SQLModel
 from datetime import datetime
 from enum import Enum
 
+from core.timezone import now_argentina_naive
+
 
 class AdminRole(str, Enum):
     SUPER_ADMIN = "SUPER_ADMIN"
@@ -19,9 +21,9 @@ class Admin(SQLModel, table=True):
     hashed_password: str = Field(nullable=False)
     role: AdminRole = Field(default=AdminRole.ADMIN)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_argentina_naive)
     updated_at: datetime = Field(
-        default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now}
+        default_factory=now_argentina_naive, sa_column_kwargs={"onupdate": now_argentina_naive}
     )
 
 
