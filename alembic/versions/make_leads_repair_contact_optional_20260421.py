@@ -1,6 +1,6 @@
 """make leads_repair contact optional
 
-Revision ID: make_leads_repair_contact_optional_20260421
+Revision ID: leads_repair_contact_opt_260421
 Revises: add_repair_leads_20260416
 Create Date: 2026-04-21
 
@@ -12,7 +12,7 @@ from sqlalchemy import inspect, text
 
 
 # revision identifiers, used by Alembic.
-revision = "make_leads_repair_contact_optional_20260421"
+revision = "leads_repair_contact_opt_260421"
 down_revision = "add_repair_leads_20260416"
 branch_labels = None
 depends_on = None
