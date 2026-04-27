@@ -363,6 +363,7 @@ def create_repair_lead(
         changed_by = "dedupe"
 
     utm = _utm_as_dict(payload.utm)
+    contact_value = normalized_contact or ""
     lead = LeadRepair(
         brand=payload.brand,
         model=payload.model,
@@ -370,7 +371,7 @@ def create_repair_lead(
         urgency=payload.urgency.value,
         description=payload.description,
         contact_channel=payload.contact_channel.value,
-        contact=normalized_contact,
+        contact=contact_value,
         lead_attempt_id=payload.lead_attempt_id,
         wizard_source=payload.wizard_source,
         status=status_value,
