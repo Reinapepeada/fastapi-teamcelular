@@ -29,6 +29,7 @@ from database.models.lead import (
 )
 
 _PHONE_CLEAN_RE = re.compile(r"\D+")
+_DEFAULT_WHATSAPP_NUMBER = "5491151034595"
 
 _RATE_LIMIT_LOCK = threading.Lock()
 _RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
@@ -236,11 +237,9 @@ def build_whatsapp_message(
 def build_whatsapp_url(message: str) -> str:
     settings = get_settings()
     base = "https://wa.me"
-    phone = settings.leads_whatsapp_number.strip()
+    phone = _PHONE_CLEAN_RE.sub("", settings.leads_whatsapp_number.strip()) or _DEFAULT_WHATSAPP_NUMBER
     encoded_message = quote(message, safe="")
-    if phone:
-        return f"{base}/{phone}?text={encoded_message}"
-    return f"{base}/?text={encoded_message}"
+    return f"{base}/{phone}?text={encoded_message}"
 
 
 def _serialize_payload_for_idempotency(

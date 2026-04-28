@@ -83,8 +83,27 @@ def test_unit_whatsapp_link_builder_normalizes_contact_email():
     message, url = get_whatsapp_link(payload)
 
     assert "Contacto: cliente@mail.com" in message
-    assert "https://wa.me/" in url
+    assert "https://wa.me/5491112345678?text=" in url
     assert "Marca%3A%20Samsung" in url
+
+
+def test_unit_whatsapp_link_builder_falls_back_to_default_number(monkeypatch):
+    monkeypatch.setenv("LEADS_WHATSAPP_NUMBER", "")
+
+    payload = LeadRepairCreateRequest.model_validate(
+        {
+            "brand": "Apple",
+            "model": "iPhone 15",
+            "repairType": "pantalla",
+            "urgency": "hoy",
+            "contactChannel": "whatsapp",
+            "contact": "+54 9 11 5555 1234",
+        }
+    )
+
+    _, url = get_whatsapp_link(payload)
+
+    assert "https://wa.me/5491151034595?text=" in url
 
 
 def test_create_lead_and_get_detail(client: TestClient, sample_payload: dict):
