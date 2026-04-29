@@ -543,6 +543,8 @@ class LeadInteractionOut(BaseModel):
     form_name: str | None = PydField(default=None, alias="formName")
     form_location: str | None = PydField(default=None, alias="formLocation")
     form_version: str | None = PydField(default=None, alias="formVersion")
+    interaction_type: str | None = PydField(default=None, alias="interactionType")
+    occurred_at: datetime | None = PydField(default=None, alias="occurredAt")
     step_index: int | None = PydField(default=None, alias="stepIndex")
     step_id: str | None = PydField(default=None, alias="stepId")
     step_label: str | None = PydField(default=None, alias="stepLabel")
