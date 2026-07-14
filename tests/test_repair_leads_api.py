@@ -12,6 +12,8 @@ os.environ.setdefault("LEADS_RATE_LIMIT_REQUESTS", "1000")
 os.environ.setdefault("LEADS_RATE_LIMIT_WINDOW_SECONDS", "60")
 os.environ.setdefault("LEADS_DEDUPE_WINDOW_SECONDS", "600")
 os.environ.setdefault("LEADS_WHATSAPP_NUMBER", "5491112345678")
+os.environ.setdefault("LEADS_WHATSAPP_RECOLETA", "5491151034595")
+os.environ.setdefault("LEADS_WHATSAPP_BELGRANO", "5491131739099")
 
 from database.connection.SQLConection import get_session
 from database.models.lead import LeadRepairCreateRequest
@@ -54,7 +56,9 @@ def sample_payload() -> dict:
         "description": "Pantalla con grietas y sin touch",
         "contactChannel": "whatsapp",
         "contact": "+54 9 11 5555 1234",
-        "wizardSource": "budget_wizard_v1",
+        "preferredBranch": "belgrano",
+        "branchSelectionMethod": "manual",
+        "wizardSource": "budget_wizard_v2",
         "utm": {
             "source": "google",
             "medium": "cpc",
@@ -85,6 +89,25 @@ def test_unit_whatsapp_link_builder_normalizes_contact_email():
     assert "Contacto: cliente@mail.com" in message
     assert "https://wa.me/5491112345678?text=" in url
     assert "Marca%3A%20Samsung" in url
+
+
+def test_unit_whatsapp_link_routes_to_preferred_branch():
+    payload = LeadRepairCreateRequest.model_validate(
+        {
+            "brand": "Apple",
+            "model": "iPhone 15",
+            "repairType": "pantalla",
+            "urgency": "hoy",
+            "contactChannel": "whatsapp",
+            "preferredBranch": "belgrano",
+            "branchSelectionMethod": "nearest",
+        }
+    )
+
+    message, url = get_whatsapp_link(payload)
+
+    assert "Sucursal preferida: Belgrano" in message
+    assert "https://wa.me/5491131739099?text=" in url
 
 
 def test_unit_whatsapp_link_builder_falls_back_to_default_number(monkeypatch):
@@ -123,6 +146,8 @@ def test_create_lead_and_get_detail(client: TestClient, sample_payload: dict):
     assert detail_body["success"] is True
     assert detail_body["data"]["leadId"] == lead_id
     assert detail_body["data"]["repairType"] == "pantalla rota"
+    assert detail_body["data"]["preferredBranch"] == "belgrano"
+    assert detail_body["data"]["branchSelectionMethod"] == "manual"
 
 
 def test_create_lead_without_contact_is_allowed(client: TestClient, sample_payload: dict):

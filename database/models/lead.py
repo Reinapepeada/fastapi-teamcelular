@@ -37,6 +37,18 @@ class LeadContactChannel(str, Enum):
     EMAIL = "email"
 
 
+class LeadPreferredBranch(str, Enum):
+    RECOLETA = "recoleta"
+    BELGRANO = "belgrano"
+
+
+class LeadBranchSelectionMethod(str, Enum):
+    MANUAL = "manual"
+    NEAREST = "nearest"
+    REMEMBERED = "remembered"
+    CONTEXTUAL = "contextual"
+
+
 class LeadRepairStatus(str, Enum):
     NEW = "new"
     CONTACTED = "contacted"
@@ -71,6 +83,8 @@ class LeadRepair(SQLModel, table=True):
     description: str | None = Field(default=None, nullable=True)
     contact_channel: str = Field(nullable=False, index=True)
     contact: str | None = Field(default=None, nullable=True)
+    preferred_branch: str | None = Field(default=None, nullable=True, index=True)
+    branch_selection_method: str | None = Field(default=None, nullable=True)
     lead_attempt_id: str | None = Field(default=None, nullable=True, index=True)
     wizard_source: str | None = Field(default=None, nullable=True)
     status: str = Field(default=LeadRepairStatus.NEW.value, nullable=False, index=True)
@@ -204,6 +218,10 @@ class LeadRepairCreateRequest(BaseModel):
     description: str | None = PydField(default=None, max_length=1000)
     contact_channel: LeadContactChannel = PydField(..., alias="contactChannel")
     contact: str | None = PydField(default=None, max_length=120)
+    preferred_branch: LeadPreferredBranch | None = PydField(default=None, alias="preferredBranch")
+    branch_selection_method: LeadBranchSelectionMethod | None = PydField(
+        default=None, alias="branchSelectionMethod"
+    )
     lead_attempt_id: str | None = PydField(default=None, alias="leadAttemptId", max_length=120)
     wizard_source: str | None = PydField(default=None, alias="wizardSource", max_length=120)
     utm: LeadUtm | None = None
@@ -456,6 +474,10 @@ class LeadRepairOut(BaseModel):
     description: str | None = None
     contact_channel: LeadContactChannel = PydField(alias="contactChannel")
     contact: str | None = None
+    preferred_branch: LeadPreferredBranch | None = PydField(default=None, alias="preferredBranch")
+    branch_selection_method: LeadBranchSelectionMethod | None = PydField(
+        default=None, alias="branchSelectionMethod"
+    )
     lead_attempt_id: str | None = PydField(default=None, alias="leadAttemptId")
     wizard_source: str | None = PydField(default=None, alias="wizardSource")
     status: str

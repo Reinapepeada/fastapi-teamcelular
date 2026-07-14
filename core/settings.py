@@ -41,6 +41,8 @@ class Settings:
     cors_allow_credentials: bool
     run_migrations_on_startup: bool
     leads_whatsapp_number: str
+    leads_whatsapp_recoleta: str
+    leads_whatsapp_belgrano: str
     leads_dedupe_window_seconds: int
     leads_rate_limit_requests: int
     leads_rate_limit_window_seconds: int
@@ -60,6 +62,8 @@ def get_settings() -> Settings:
         cors_allow_credentials=cors_allow_credentials,
         run_migrations_on_startup=env_bool("RUN_MIGRATIONS_ON_STARTUP", default=False),
         leads_whatsapp_number=env_str("LEADS_WHATSAPP_NUMBER", default=""),
+        leads_whatsapp_recoleta=env_str("LEADS_WHATSAPP_RECOLETA", default="5491151034595"),
+        leads_whatsapp_belgrano=env_str("LEADS_WHATSAPP_BELGRANO", default="5491131739099"),
         leads_dedupe_window_seconds=env_int("LEADS_DEDUPE_WINDOW_SECONDS", default=600),
         leads_rate_limit_requests=env_int("LEADS_RATE_LIMIT_REQUESTS", default=30),
         leads_rate_limit_window_seconds=env_int("LEADS_RATE_LIMIT_WINDOW_SECONDS", default=60),

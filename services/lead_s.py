@@ -20,6 +20,7 @@ from database.models.lead import (
     LeadInteraction,
     LeadInteractionCreateRequest,
     LeadMetadata,
+    LeadPreferredBranch,
     LeadNote,
     LeadRepair,
     LeadRepairCreateRequest,
@@ -146,9 +147,10 @@ def _compute_fingerprint_hash(
     model: str,
     repair_type: str,
     contact: str | None,
+    preferred_branch: str | None = None,
 ) -> str:
     normalized_contact = (contact or "").lower()
-    raw = f"{brand.lower()}|{model.lower()}|{repair_type.lower()}|{normalized_contact}"
+    raw = f"{brand.lower()}|{model.lower()}|{repair_type.lower()}|{normalized_contact}|{preferred_branch or ''}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -218,6 +220,7 @@ def build_whatsapp_message(
     description: str | None,
     contact_channel: str,
     contact: str | None,
+    preferred_branch: str | None = None,
 ) -> str:
     desc = description or "Sin descripcion"
     lines = [
@@ -231,13 +234,21 @@ def build_whatsapp_message(
     ]
     if contact:
         lines.append(f"Contacto: {contact}")
+    if preferred_branch:
+        lines.append(f"Sucursal preferida: {preferred_branch.capitalize()}")
+        lines.append("La sucursal es una preferencia y puede ajustarse si conviene otra sede.")
     return "\n".join(lines)
 
 
-def build_whatsapp_url(message: str) -> str:
+def build_whatsapp_url(message: str, preferred_branch: str | None = None) -> str:
     settings = get_settings()
     base = "https://wa.me"
-    phone = _PHONE_CLEAN_RE.sub("", settings.leads_whatsapp_number.strip()) or _DEFAULT_WHATSAPP_NUMBER
+    branch_numbers = {
+        LeadPreferredBranch.RECOLETA.value: settings.leads_whatsapp_recoleta,
+        LeadPreferredBranch.BELGRANO.value: settings.leads_whatsapp_belgrano,
+    }
+    configured = branch_numbers.get(preferred_branch or "", settings.leads_whatsapp_number)
+    phone = _PHONE_CLEAN_RE.sub("", configured.strip()) or _DEFAULT_WHATSAPP_NUMBER
     encoded_message = quote(message, safe="")
     return f"{base}/{phone}?text={encoded_message}"
 
@@ -258,6 +269,8 @@ def _serialize_payload_for_idempotency(
         "description": payload.description,
         "contactChannel": payload.contact_channel.value,
         "contact": normalized_contact,
+        "preferredBranch": payload.preferred_branch.value if payload.preferred_branch else None,
+        "branchSelectionMethod": payload.branch_selection_method.value if payload.branch_selection_method else None,
         "leadAttemptId": payload.lead_attempt_id,
         "wizardSource": payload.wizard_source,
         "utm": utm,
@@ -279,8 +292,9 @@ def get_whatsapp_link(payload: LeadRepairCreateRequest) -> tuple[str, str]:
         description=payload.description,
         contact_channel=payload.contact_channel.value,
         contact=normalized_contact,
+        preferred_branch=payload.preferred_branch.value if payload.preferred_branch else None,
     )
-    return message, build_whatsapp_url(message)
+    return message, build_whatsapp_url(message, payload.preferred_branch.value if payload.preferred_branch else None)
 
 
 def create_repair_lead(
@@ -313,6 +327,7 @@ def create_repair_lead(
         model=payload.model,
         repair_type=payload.repair_type,
         contact=normalized_contact,
+        preferred_branch=payload.preferred_branch.value if payload.preferred_branch else None,
     )
 
     message = build_whatsapp_message(
@@ -323,8 +338,10 @@ def create_repair_lead(
         description=payload.description,
         contact_channel=payload.contact_channel.value,
         contact=normalized_contact,
+        preferred_branch=payload.preferred_branch.value if payload.preferred_branch else None,
     )
-    whatsapp_url = build_whatsapp_url(message)
+    preferred_branch = payload.preferred_branch.value if payload.preferred_branch else None
+    whatsapp_url = build_whatsapp_url(message, preferred_branch)
 
     if idempotency_key:
         existing_by_key = session.exec(
@@ -371,6 +388,8 @@ def create_repair_lead(
         description=payload.description,
         contact_channel=payload.contact_channel.value,
         contact=contact_value,
+        preferred_branch=preferred_branch,
+        branch_selection_method=payload.branch_selection_method.value if payload.branch_selection_method else None,
         lead_attempt_id=payload.lead_attempt_id,
         wizard_source=payload.wizard_source,
         status=status_value,
@@ -927,6 +946,7 @@ def build_lead_out(
         description=lead.description,
         contact_channel=lead.contact_channel,
         contact=lead.contact or "",
+        preferred_branch=lead.preferred_branch,
     )
 
     utm_data = {
@@ -951,13 +971,15 @@ def build_lead_out(
         "description": lead.description,
         "contact_channel": lead.contact_channel,
         "contact": lead.contact,
+        "preferred_branch": lead.preferred_branch,
+        "branch_selection_method": lead.branch_selection_method,
         "lead_attempt_id": lead.lead_attempt_id,
         "wizard_source": lead.wizard_source,
         "status": lead.status,
         "duplicate_of": lead.duplicate_of,
         "created_at": to_argentina_datetime(lead.created_at),
         "updated_at": to_argentina_datetime(lead.updated_at),
-        "whatsapp_url": build_whatsapp_url(message),
+        "whatsapp_url": build_whatsapp_url(message, lead.preferred_branch),
         "utm": utm_data if any(utm_data.values()) else None,
         "metadata": metadata_data if any(metadata_data.values()) else None,
         "status_history": [],
