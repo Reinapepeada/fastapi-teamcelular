@@ -252,17 +252,22 @@ def fetch_products_with_filters(session, page: int, size: int, filters: dict):
             )
         )
 
+    # Se compara con TRIM de los dos lados: el valor entrante ya viene
+    # limpio, pero la columna no. "Modulos " quedo guardado con espacio
+    # final y dejaba sus 32 productos fuera de todo filtro por categoria.
     if filters.get("categories"):
         category_names = [
             name.strip() for name in str(filters["categories"]).split(",") if name.strip()
         ]
         if category_names:
-            query = query.join(Product.category).where(Category.name.in_(category_names))
+            query = query.join(Product.category).where(
+                func.trim(Category.name).in_(category_names)
+            )
 
     if filters.get("brands"):
         brand_names = [name.strip() for name in str(filters["brands"]).split(",") if name.strip()]
         if brand_names:
-            query = query.join(Product.brand).where(Brand.name.in_(brand_names))
+            query = query.join(Product.brand).where(func.trim(Brand.name).in_(brand_names))
 
     min_price = filters.get("min_price")
     if min_price is not None:
